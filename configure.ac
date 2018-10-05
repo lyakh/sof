@@ -138,7 +138,6 @@ case "$with_arch" in
 	ARCH="host"
 	AC_SUBST(ARCH)
 
-	AC_CHECK_HEADERS([sound/asoc.h])
     ;;
     *)
 	if test "$have_rimage" = "no" && test "$have_doc" = "no" ; then
@@ -148,6 +147,7 @@ case "$with_arch" in
 esac
 
 ADD_OPTIONAL_AM_CFLAGS([-Wimplicit-fallthrough=3])
+AC_CHECK_HEADERS([sound/asoc.h])
 
 AC_SUBST(ARCH_CFLAGS)
 AC_SUBST(ARCH_LDFLAGS)
@@ -372,6 +372,9 @@ case "$with_dsp_core" in
     ;;
 
 esac
+
+PLATFORM_ROM_LDSCRIPT="rom.x"
+AC_SUBST(PLATFORM_ROM_LDSCRIPT)
 
 PLATFORM_BOOT_LDR_LDSCRIPT="boot_ldr.x"
 AC_SUBST(PLATFORM_BOOT_LDR_LDSCRIPT)

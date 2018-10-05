@@ -1,0 +1,89 @@
+/*
+ * Linker Script for Apollolake Bootloader.
+ *
+ * This script is run through the GNU C preprocessor to align the memory
+ * offsets with headers.
+ *
+ * Use spaces for formatting as cpp ignore tab sizes.
+ */
+
+#include <platform/memory.h>
+#include <xtensa/config/core-isa.h>
+
+OUTPUT_ARCH(xtensa)
+
+MEMORY
+{
+  ResetVector_text :
+        org = ROM_BASE,
+        len = ROM_SIZE
+}
+
+PHDRS
+{
+  ResetVector_text_phdr PT_LOAD;
+}
+
+SECTIONS
+{
+  .ResetVector.text : ALIGN(4)
+  {
+    ResetVector_text_start = ABSOLUTE(.);
+    KEEP (*(.ResetVector.text))
+    ResetVector_text_end = ABSOLUTE(.);
+  } >ResetVector_text :ResetVector_text_phdr
+
+  PROVIDE(_ResetHandler = IMR_BOOT_LDR_TEXT_ENTRY_BASE);
+
+  .debug  0 :  { *(.debug) }
+  .line  0 :  { *(.line) }
+  .debug_srcinfo  0 :  { *(.debug_srcinfo) }
+  .debug_sfnames  0 :  { *(.debug_sfnames) }
+  .debug_aranges  0 :  { *(.debug_aranges) }
+  .debug_pubnames  0 :  { *(.debug_pubnames) }
+  .debug_info  0 :  { *(.debug_info) }
+  .debug_abbrev  0 :  { *(.debug_abbrev) }
+  .debug_line  0 :  { *(.debug_line) }
+  .debug_frame  0 :  { *(.debug_frame) }
+  .debug_str  0 :  { *(.debug_str) }
+  .debug_loc  0 :  { *(.debug_loc) }
+  .debug_macinfo  0 :  { *(.debug_macinfo) }
+  .debug_weaknames  0 :  { *(.debug_weaknames) }
+  .debug_funcnames  0 :  { *(.debug_funcnames) }
+  .debug_typenames  0 :  { *(.debug_typenames) }
+  .debug_varnames  0 :  { *(.debug_varnames) }
+
+  .xt.insn 0 :
+  {
+    KEEP (*(.xt.insn))
+    KEEP (*(.gnu.linkonce.x.*))
+  }
+  .xt.prop 0 :
+  {
+    KEEP (*(.xt.prop))
+    KEEP (*(.xt.prop.*))
+    KEEP (*(.gnu.linkonce.prop.*))
+  }
+  .xt.lit 0 :
+  {
+    KEEP (*(.xt.lit))
+    KEEP (*(.xt.lit.*))
+    KEEP (*(.gnu.linkonce.p.*))
+  }
+  .xt.profile_range 0 :
+  {
+    KEEP (*(.xt.profile_range))
+    KEEP (*(.gnu.linkonce.profile_range.*))
+  }
+  .xt.profile_ranges 0 :
+  {
+    KEEP (*(.xt.profile_ranges))
+    KEEP (*(.gnu.linkonce.xt.profile_ranges.*))
+  }
+  .xt.profile_files 0 :
+  {
+    KEEP (*(.xt.profile_files))
+    KEEP (*(.gnu.linkonce.xt.profile_files.*))
+  }
+}
+
