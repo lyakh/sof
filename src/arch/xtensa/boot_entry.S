@@ -50,7 +50,11 @@
 	.global	boot_entry
 
 boot_entry:
+#if defined CONFIG_SUECREEK
+	entry	a1, 32
+#else
 	entry	a1, 48
+#endif
 	j boot_init
 
 	.align 4
