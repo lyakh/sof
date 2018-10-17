@@ -51,8 +51,11 @@ _boot_ldr_entry:
 
 .literal_end:
 	l32r	a0, _boot_ldr_entry	// load SRAM reset handler address
-	jx	a0		// jump to the hanlder
-
+#if defined CONFIG_SUECREEK
+	callx8	a0		// jump to the handler
+#else
+	callx12	a0
+#endif
 	.size	ResetVector, . - ResetVector
 
 	.end literal_prefix
