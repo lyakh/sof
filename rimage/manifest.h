@@ -67,7 +67,7 @@
 	(MAN_DESC_OFFSET - MAN_FW_DESC_OFFSET_V1_8)
 
 /*
- * Firmware manifest header.
+ * Firmware manifest header V1.8 used on APL onwards
  */
 struct fw_image_manifest_v1_8 {
 	/* MEU tool needs these sections to be 0s */
@@ -91,10 +91,14 @@ struct fw_image_manifest_v1_8 {
 extern struct fw_image_manifest_v1_8 apl_manifest;
 extern struct fw_image_manifest_v1_8 cnl_manifest;
 
+/*
+ * Firmware manifest header V1.5 used on SKL and KBL
+ */
 struct fw_image_manifest_v1_5 {
-	struct css_header_v1_5 header;
-	struct sof_man_fw_desc adsp_fw_bin_desc;
+	struct css_header_v1_5 css_header;
+	struct sof_man_fw_desc desc;
 } __attribute__((packed));
 
 extern struct fw_image_manifest_v1_5 skl_manifest;
+extern struct fw_image_manifest_v1_5 kbl_manifest;
 #endif
