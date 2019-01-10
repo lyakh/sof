@@ -797,17 +797,17 @@ static int dw_dma_set_config(struct dma *dma, int channel,
 			goto out;
 		}
 
-		lli_desc->ctrl_lo |= DW_CTLL_SRC_MSIZE(msize);
-		lli_desc->ctrl_lo |= DW_CTLL_DST_MSIZE(msize);
-		lli_desc->ctrl_lo |= DW_CTLL_INT_EN; /* enable interrupt */
+		lli_desc->ctrl_lo |= DW_CTLL_SRC_MSIZE(msize) |
+			DW_CTLL_DST_MSIZE(msize) |
+			DW_CTLL_INT_EN; /* enable interrupt */
 
 		/* config the SINC and DINC field of CTL_LOn,
 		 * SRC/DST_PER filed of CFGn
 		 */
 		switch (config->direction) {
 		case DMA_DIR_LMEM_TO_HMEM:
-			lli_desc->ctrl_lo |= DW_CTLL_FC_M2M;
-			lli_desc->ctrl_lo |= DW_CTLL_SRC_INC | DW_CTLL_DST_INC;
+			lli_desc->ctrl_lo |= DW_CTLL_FC_M2M | DW_CTLL_SRC_INC |
+				DW_CTLL_DST_INC;
 #if DW_USE_HW_LLI
 			lli_desc->ctrl_lo |=
 				DW_CTLL_LLP_S_EN | DW_CTLL_LLP_D_EN;
@@ -817,8 +817,8 @@ static int dw_dma_set_config(struct dma *dma, int channel,
 			lli_desc->dar = (uint32_t)sg_elem->dest;
 			break;
 		case DMA_DIR_HMEM_TO_LMEM:
-			lli_desc->ctrl_lo |= DW_CTLL_FC_M2M;
-			lli_desc->ctrl_lo |= DW_CTLL_SRC_INC | DW_CTLL_DST_INC;
+			lli_desc->ctrl_lo |= DW_CTLL_FC_M2M | DW_CTLL_SRC_INC |
+				DW_CTLL_DST_INC;
 #if DW_USE_HW_LLI
 			lli_desc->ctrl_lo |=
 				DW_CTLL_LLP_S_EN | DW_CTLL_LLP_D_EN;
@@ -829,8 +829,8 @@ static int dw_dma_set_config(struct dma *dma, int channel,
 			lli_desc->sar = (uint32_t)sg_elem->src;
 			break;
 		case DMA_DIR_MEM_TO_MEM:
-			lli_desc->ctrl_lo |= DW_CTLL_FC_M2M;
-			lli_desc->ctrl_lo |= DW_CTLL_SRC_INC | DW_CTLL_DST_INC;
+			lli_desc->ctrl_lo |= DW_CTLL_FC_M2M | DW_CTLL_SRC_INC |
+				DW_CTLL_DST_INC;
 #if DW_USE_HW_LLI
 			lli_desc->ctrl_lo |=
 				DW_CTLL_LLP_S_EN | DW_CTLL_LLP_D_EN;
@@ -841,8 +841,8 @@ static int dw_dma_set_config(struct dma *dma, int channel,
 					| PLATFORM_HOST_DMA_MASK;
 			break;
 		case DMA_DIR_MEM_TO_DEV:
-			lli_desc->ctrl_lo |= DW_CTLL_FC_M2P;
-			lli_desc->ctrl_lo |= DW_CTLL_SRC_INC | DW_CTLL_DST_FIX;
+			lli_desc->ctrl_lo |= DW_CTLL_FC_M2P | DW_CTLL_SRC_INC |
+				DW_CTLL_DST_FIX;
 #if DW_USE_HW_LLI
 			lli_desc->ctrl_lo |= DW_CTLL_LLP_S_EN;
 			lli_desc->ctrl_hi |= DW_CTLH_DONE(1);
@@ -854,8 +854,8 @@ static int dw_dma_set_config(struct dma *dma, int channel,
 			lli_desc->dar = (uint32_t)sg_elem->dest;
 			break;
 		case DMA_DIR_DEV_TO_MEM:
-			lli_desc->ctrl_lo |= DW_CTLL_FC_P2M;
-			lli_desc->ctrl_lo |= DW_CTLL_SRC_FIX | DW_CTLL_DST_INC;
+			lli_desc->ctrl_lo |= DW_CTLL_FC_P2M | DW_CTLL_SRC_FIX |
+				DW_CTLL_DST_INC;
 #if DW_USE_HW_LLI
 			lli_desc->ctrl_lo |= DW_CTLL_LLP_D_EN;
 			lli_desc->ctrl_hi |= DW_CTLH_DONE(0);
@@ -867,8 +867,8 @@ static int dw_dma_set_config(struct dma *dma, int channel,
 					| PLATFORM_HOST_DMA_MASK;
 			break;
 		case DMA_DIR_DEV_TO_DEV:
-			lli_desc->ctrl_lo |= DW_CTLL_FC_P2P;
-			lli_desc->ctrl_lo |= DW_CTLL_SRC_FIX | DW_CTLL_DST_FIX;
+			lli_desc->ctrl_lo |= DW_CTLL_FC_P2P | DW_CTLL_SRC_FIX |
+				DW_CTLL_DST_FIX;
 #if DW_USE_HW_LLI
 			lli_desc->ctrl_lo |=
 				DW_CTLL_LLP_S_EN | DW_CTLL_LLP_D_EN;
