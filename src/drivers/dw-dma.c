@@ -1136,7 +1136,7 @@ static void dw_dma_process_block(struct dma_chan_data *chan,
 
 static uint64_t dw_dma_work(void *data, uint64_t delay)
 {
-	struct dma_id *dma_id = (struct dma_id *)data;
+	struct dma_id *dma_id = data;
 	struct dma *dma = dma_id->dma;
 	struct dma_pdata *p = dma_get_drvdata(dma);
 	struct dma_sg_elem next;
@@ -1161,7 +1161,7 @@ static uint64_t dw_dma_work(void *data, uint64_t delay)
 /* interrupt handler for DW DMA */
 static void dw_dma_irq_handler(void *data)
 {
-	struct dma_id *dma_id = (struct dma_id *)data;
+	struct dma_id *dma_id = data;
 	struct dma *dma = dma_id->dma;
 	struct dma_pdata *p = dma_get_drvdata(dma);
 	struct dma_sg_elem next;
@@ -1273,7 +1273,7 @@ static void dw_dma_process_transfer(struct dma_chan_data *chan,
 /* interrupt handler for DMA */
 static void dw_dma_irq_handler(void *data)
 {
-	struct dma *dma = (struct dma *)data;
+	struct dma *dma = data;
 	struct dma_pdata *p = dma_get_drvdata(dma);
 	struct dma_sg_elem next;
 	uint32_t status_tfr;
