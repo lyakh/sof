@@ -10,5 +10,5 @@ libdrivers_la_CFLAGS = \
 libdrivers_la_SOURCES = dma.c
 
 if BUILD_SUECREEK
-libdrivers_la_SOURCES += gpio.c
+libdrivers_la_SOURCES += gpio.c ssi-spi.c
 endif

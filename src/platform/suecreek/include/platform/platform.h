@@ -148,6 +148,9 @@ struct sof;
 /* minimal SSP port stop delay in cycles */
 #define PLATFORM_SSP_STOP_DELAY	3000
 
+#define PLATFORM_SPI_GPIO_ID	0
+#define PLATFORM_SPI_GPIO_IRQ	14
+
 /* IOMUX ID for GPIO controller #0 */
 #define PLATFORM_IOMUX_GPIO0	0
 
