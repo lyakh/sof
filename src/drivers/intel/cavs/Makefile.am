@@ -24,8 +24,7 @@ libdrivers_la_SOURCES += \
 endif
 
 if BUILD_SUECREEK
-libdrivers_la_SOURCES += \
-	sue-ipc.c
+libdrivers_la_SOURCES += sue-ipc.c sue-iomux.c
 endif
 
 libdrivers_la_CFLAGS = \
