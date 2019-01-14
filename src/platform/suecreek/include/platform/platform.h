@@ -154,6 +154,9 @@ struct sof;
 /* minimal SSP port stop delay in cycles */
 #define PLATFORM_SSP_STOP_DELAY	3000
 
+/* IOMUX ID for GPIO controller #0 */
+#define PLATFORM_IOMUX_GPIO0	0
+
 // TODO: need UART versions
 #if 0
 /* Platform defined trace code */

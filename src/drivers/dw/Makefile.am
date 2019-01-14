@@ -8,3 +8,7 @@ libdrivers_la_CFLAGS = \
 	$(ARCH_INCDIR)
 
 libdrivers_la_SOURCES = dma.c
+
+if BUILD_SUECREEK
+libdrivers_la_SOURCES += gpio.c
+endif
