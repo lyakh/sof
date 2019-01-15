@@ -596,6 +596,7 @@ AC_CONFIG_FILES([
 	src/audio/Makefile
 	src/math/Makefile
 	src/drivers/Makefile
+	src/drivers/dw/Makefile
 	src/drivers/intel/Makefile
 	src/drivers/intel/baytrail/Makefile
 	src/drivers/intel/haswell/Makefile

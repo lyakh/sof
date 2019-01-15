@@ -1,4 +1,4 @@
-SUBDIRS = intel
+SUBDIRS = intel dw
 
 noinst_LTLIBRARIES = libdrivers.la
 
@@ -10,6 +10,6 @@ libdrivers_la_CFLAGS = \
 	$(ARCH_INCDIR)
 
 # This lib is just composition of convenience libraries
-libdrivers_la_SOURCES = dw-dma.c
+libdrivers_la_SOURCES =
 
-libdrivers_la_LIBADD = intel/libdrivers.la
+libdrivers_la_LIBADD = intel/libdrivers.la dw/libdrivers.la
