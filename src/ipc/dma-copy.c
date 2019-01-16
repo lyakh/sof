@@ -71,9 +71,6 @@ static struct dma_sg_elem *sg_get_elem_at(struct dma_sg_config *host_sg,
 			"host offset in beyond end of SG buffer");
 	return NULL;
 }
-#endif
-
-#if !defined CONFIG_DMA_GW
 
 static void dma_complete(void *data, uint32_t type, struct dma_sg_elem *next)
 {
@@ -86,30 +83,6 @@ static void dma_complete(void *data, uint32_t type, struct dma_sg_elem *next)
 
 	next->size = DMA_RELOAD_END;
 }
-
-#endif
-
-/* Copy DSP memory to host memory.
- * Copies DSP memory to host in a single PAGE_SIZE or smaller block. Does not
- * waits/sleeps and can be used in IRQ context.
- */
-#if defined CONFIG_DMA_GW
-
-int dma_copy_to_host_nowait(struct dma_copy *dc, struct dma_sg_config *host_sg,
-			    int32_t host_offset, void *local_ptr, int32_t size)
-{
-	int ret;
-
-	/* tell gateway to copy */
-	ret = dma_copy(dc->dmac, dc->chan, size, 0);
-	if (ret < 0)
-		return ret;
-
-	/* bytes copied */
-	return size;
-}
-
-#else
 
 int dma_copy_to_host_nowait(struct dma_copy *dc, struct dma_sg_config *host_sg,
 			    int32_t host_offset, void *local_ptr, int32_t size)
@@ -159,6 +132,40 @@ int dma_copy_to_host_nowait(struct dma_copy *dc, struct dma_sg_config *host_sg,
 	return local_sg_elem.size;
 }
 
+#else
+
+/* Copy DSP memory to host memory.
+ * Copies DSP memory to host in a single PAGE_SIZE or smaller block. Does not
+ * waits/sleeps and can be used in IRQ context.
+ */
+
+int dma_copy_to_host_nowait(struct dma_copy *dc, struct dma_sg_config *host_sg,
+			    int32_t host_offset, void *local_ptr, int32_t size)
+{
+	int ret;
+
+	/* tell gateway to copy */
+	ret = dma_copy(dc->dmac, dc->chan, size, 0);
+	if (ret < 0)
+		return ret;
+
+	/* bytes copied */
+	return size;
+}
+
+int dma_copy_set_stream_tag(struct dma_copy *dc, uint32_t stream_tag)
+{
+	/* get DMA channel from DMAC */
+	dc->chan = dma_channel_get(dc->dmac, stream_tag - 1);
+	if (dc->chan < 0) {
+		trace_dma_error("dma_copy_set_stream_tag() error: "
+				"dc->chan < 0");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 #endif
 
 int dma_copy_new(struct dma_copy *dc)
@@ -190,20 +197,3 @@ int dma_copy_new(struct dma_copy *dc)
 
 	return 0;
 }
-
-#if defined CONFIG_DMA_GW
-
-int dma_copy_set_stream_tag(struct dma_copy *dc, uint32_t stream_tag)
-{
-	/* get DMA channel from DMAC */
-	dc->chan = dma_channel_get(dc->dmac, stream_tag - 1);
-	if (dc->chan < 0) {
-		trace_dma_error("dma_copy_set_stream_tag() error: "
-				"dc->chan < 0");
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-#endif
