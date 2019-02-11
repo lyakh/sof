@@ -59,12 +59,16 @@ struct irq_desc {
 
 	/* to identify interrupt with the same IRQ */
 	int id;
-	spinlock_t lock;
 	uint32_t enabled_count;
 
 	/* to link to other irq_desc */
 	struct list_item irq_list;
+};
 
+struct irq_cascade_desc {
+	struct irq_desc desc;
+
+	spinlock_t lock;
 	uint32_t num_children;
 	struct list_item child[PLATFORM_IRQ_CHILDREN];
 };
