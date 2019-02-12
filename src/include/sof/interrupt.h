@@ -25,10 +25,8 @@
 #define IRQ_AUTO_UNMASK		1
 
 struct irq_desc {
-	/* irq must be first for constructor */
 	int irq;        /* logical IRQ number */
 
-	/* handler is optional for constructor */
 	void (*handler)(void *arg);
 	void *handler_arg;
 
@@ -38,6 +36,8 @@ struct irq_desc {
 	/* to identify interrupt with the same IRQ */
 	int id;
 	uint32_t enabled_count;
+
+	uint32_t cpu_mask;
 
 	/* to link to other irq_desc */
 	struct list_item irq_list;

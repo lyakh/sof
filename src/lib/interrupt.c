@@ -128,8 +128,8 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 	/* init child from run-time, may be registered and unregistered
 	 * many times at run-time
 	 */
-	child = rzalloc(RZONE_SYS_RUNTIME, SOF_MEM_CAPS_RAM,
-			sizeof(struct irq_desc));
+	child = rzalloc(RZONE_SYS_RUNTIME | RZONE_FLAG_UNCACHED,
+			SOF_MEM_CAPS_RAM, sizeof(struct irq_desc));
 	if (!child) {
 		ret = -ENOMEM;
 		goto finish;
@@ -140,17 +140,19 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 	child->handler_arg = arg;
 	child->id = SOF_IRQ_ID(irq);
 	child->unmask = unmask;
+	child->cpu_mask = 1 << cpu_get_id();
 
-	list_item_append(&child->irq_list, &cascade->child[SOF_IRQ_BIT(irq)]);
+	list = &cascade->child[SOF_IRQ_BIT(irq)];
+	list_item_append(&child->irq_list, list);
 
 	/* do we need to register parent ? */
-	if (cascade->num_children == 0) {
+	if (!cascade->num_children)
 		ret = arch_interrupt_register(parent->irq,
 					      parent->handler, parent);
-	}
 
 	/* increment number of children */
-	cascade->num_children++;
+	if (!ret)
+		cascade->num_children++;
 
 finish:
 	spin_unlock(&cascade->lock);
@@ -161,18 +163,17 @@ static void irq_unregister_child(struct irq_desc *parent, int irq,
 				 const void *arg)
 {
 	struct irq_desc *child;
-	struct list_item *clist;
-	struct list_item *tlist;
 	struct irq_cascade_desc *cascade = container_of(parent,
 						struct irq_cascade_desc, desc);
+	struct list_item *clist = &cascade->child[SOF_IRQ_BIT(irq)];
 
 	spin_lock(&cascade->lock);
 
 	/* does child already exist ? */
-	if (list_is_empty(&cascade->child[SOF_IRQ_BIT(irq)]))
+	if (list_is_empty(clist))
 		goto finish;
 
-	list_for_item_safe(clist, tlist, &cascade->child[SOF_IRQ_BIT(irq)]) {
+	list_for_item (clist, &cascade->child[SOF_IRQ_BIT(irq)]) {
 		child = container_of(clist, struct irq_desc, irq_list);
 
 		if (SOF_IRQ_ID(irq) == child->id) {
@@ -183,15 +184,17 @@ static void irq_unregister_child(struct irq_desc *parent, int irq,
 			list_item_del(&child->irq_list);
 			cascade->num_children--;
 			rfree(child);
+
+			/*
+			 * unregister the root interrupt if this l2 is the last
+			 * registered child.
+			 */
+			if (!cascade->num_children)
+				arch_interrupt_unregister(parent->irq);
+
+			break;
 		}
 	}
-
-	/*
-	 * unregister the root interrupt if the this l2 is
-	 * the last registered one.
-	 */
-	if (cascade->num_children == 0)
-		arch_interrupt_unregister(parent->irq);
 
 finish:
 	spin_unlock(&cascade->lock);
@@ -224,8 +227,8 @@ static uint32_t irq_enable_child(struct irq_desc *parent, int irq)
 	}
 
 	spin_unlock(&cascade->lock);
-	return 0;
 
+	return 0;
 }
 
 static uint32_t irq_disable_child(struct irq_desc *parent, int irq)
@@ -247,13 +250,17 @@ static uint32_t irq_disable_child(struct irq_desc *parent, int irq)
 
 			/* disable the child interrupt */
 			platform_interrupt_mask(irq);
+
+			if (!parent->enabled_count)
+				arch_interrupt_disable_mask(1 <<
+							SOF_IRQ_NUMBER(irq));
+
+			break;
 		}
 	}
 
-	if (parent->enabled_count == 0)
-		arch_interrupt_disable_mask(1 << SOF_IRQ_NUMBER(irq));
-
 	spin_unlock(&cascade->lock);
+
 	return 0;
 }
 
@@ -263,7 +270,7 @@ int interrupt_register(uint32_t irq, int unmask, void (*handler)(void *arg),
 	struct irq_desc *parent;
 
 	/* no parent means we are registering DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		return arch_interrupt_register(irq, handler, arg);
 	else
@@ -275,7 +282,7 @@ void interrupt_unregister(uint32_t irq, const void *arg)
 	struct irq_desc *parent;
 
 	/* no parent means we are unregistering DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		arch_interrupt_unregister(irq);
 	else
@@ -287,7 +294,7 @@ uint32_t interrupt_enable(uint32_t irq)
 	struct irq_desc *parent;
 
 	/* no parent means we are enabling DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		return arch_interrupt_enable_mask(1 << irq);
 	else
@@ -299,7 +306,7 @@ uint32_t interrupt_disable(uint32_t irq)
 	struct irq_desc *parent;
 
 	/* no parent means we are disabling DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		return arch_interrupt_disable_mask(1 << irq);
 	else
