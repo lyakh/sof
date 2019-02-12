@@ -44,6 +44,7 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 	int ret = 0;
 	struct irq_desc *child;
 	struct irq_cascade_desc *cascade;
+	int core = cpu_get_id();
 
 	if (parent == NULL)
 		return -EINVAL;
@@ -67,17 +68,21 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 	child->handler_arg = arg;
 	child->id = SOF_IRQ_ID(irq);
 	child->unmask = unmask;
+	child->cpu_mask = 1 << core;
 
 	list_item_append(&child->irq_list, &cascade->child[SOF_IRQ_BIT(irq)]);
+	dcache_writeback_region(&child->irq_list, sizeof(child->irq_list));
+	dcache_writeback_region(child->irq_list.prev, sizeof(child->irq_list));
 
 	/* do we need to register parent ? */
-	if (cascade->num_children == 0) {
+	if (cascade->num_children == 0)
 		ret = arch_interrupt_register(parent->irq,
 					      parent->handler, parent);
-	}
 
 	/* increment number of children */
 	cascade->num_children++;
+
+	dcache_writeback_region(cascade, sizeof(*cascade));
 
 finish:
 	spin_unlock(&cascade->lock);

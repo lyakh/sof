@@ -51,6 +51,7 @@ static inline void irq_lvl2_handler(void *data, int level, uint32_t ilxsd,
 	struct irq_cascade_desc *cascade = container_of(parent,
 						struct irq_cascade_desc, desc);
 	struct irq_desc *child = NULL;
+	int core = cpu_get_id();
 	struct list_item *clist;
 	uint32_t status;
 	uint32_t i = 0;
@@ -73,7 +74,8 @@ static inline void irq_lvl2_handler(void *data, int level, uint32_t ilxsd,
 		list_for_item(clist, &cascade->child[i]) {
 			child = container_of(clist, struct irq_desc, irq_list);
 
-			if (child && child->handler) {
+			if (child && child->handler &&
+			    (child->cpu_mask & 1 << core)) {
 				child->handler(child->handler_arg);
 				unmask = child->unmask;
 			} else {
@@ -125,43 +127,24 @@ static void irq_lvl2_level5_handler(void *data)
 }
 
 /* DSP internal interrupts */
-static struct irq_cascade_desc dsp_irq[PLATFORM_CORE_COUNT][4] = {
-#if CAVS_VERSION >= CAVS_VERSION_1_8
-	{{.desc = {IRQ_NUM_EXT_LEVEL2, irq_lvl2_level2_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL3, irq_lvl2_level3_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL4, irq_lvl2_level4_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL5, irq_lvl2_level5_handler, },} },
-
-	{{.desc = {IRQ_NUM_EXT_LEVEL2, irq_lvl2_level2_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL3, irq_lvl2_level3_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL4, irq_lvl2_level4_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL5, irq_lvl2_level5_handler, },} },
-#endif
-
-	{{.desc = {IRQ_NUM_EXT_LEVEL2, irq_lvl2_level2_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL3, irq_lvl2_level3_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL4, irq_lvl2_level4_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL5, irq_lvl2_level5_handler, },} },
-
-	{{.desc = {IRQ_NUM_EXT_LEVEL2, irq_lvl2_level2_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL3, irq_lvl2_level3_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL4, irq_lvl2_level4_handler, },},
-	 {.desc = {IRQ_NUM_EXT_LEVEL5, irq_lvl2_level5_handler, },} },
+static struct irq_cascade_desc dsp_irq[] = {
+	{.desc = {IRQ_NUM_EXT_LEVEL2, irq_lvl2_level2_handler, },},
+	{.desc = {IRQ_NUM_EXT_LEVEL3, irq_lvl2_level3_handler, },},
+	{.desc = {IRQ_NUM_EXT_LEVEL4, irq_lvl2_level4_handler, },},
+	{.desc = {IRQ_NUM_EXT_LEVEL5, irq_lvl2_level5_handler, },},
 };
 
 struct irq_desc *platform_irq_get_parent(uint32_t irq)
 {
-	int core = SOF_IRQ_CPU(irq);
-
 	switch (SOF_IRQ_NUMBER(irq)) {
 	case IRQ_NUM_EXT_LEVEL2:
-		return &dsp_irq[core][0].desc;
+		return &dsp_irq[0].desc;
 	case IRQ_NUM_EXT_LEVEL3:
-		return &dsp_irq[core][1].desc;
+		return &dsp_irq[1].desc;
 	case IRQ_NUM_EXT_LEVEL4:
-		return &dsp_irq[core][2].desc;
+		return &dsp_irq[2].desc;
 	case IRQ_NUM_EXT_LEVEL5:
-		return &dsp_irq[core][3].desc;
+		return &dsp_irq[3].desc;
 	default:
 		return NULL;
 	}
@@ -233,9 +216,12 @@ void platform_interrupt_init(void)
 	irq_write(REG_IRQ_IL4MSD(core), REG_IRQ_IL4MD_ALL);
 	irq_write(REG_IRQ_IL5MSD(core), REG_IRQ_IL5MD_ALL);
 
-	for (i = 0; i < ARRAY_SIZE(dsp_irq[core]); i++) {
-		spinlock_init(&dsp_irq[core][i].lock);
+	if (core != PLATFORM_MASTER_CORE_ID)
+		return;
+
+	for (i = 0; i < ARRAY_SIZE(dsp_irq); i++) {
+		spinlock_init(&dsp_irq[i].lock);
 		for (j = 0; j < PLATFORM_IRQ_CHILDREN; j++)
-			list_init(&dsp_irq[core][i].child[j]);
+			list_init(&dsp_irq[i].child[j]);
 	}
 }
