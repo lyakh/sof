@@ -1163,7 +1163,7 @@ static inline void dw_dma_interrupt_unregister(struct dma *dma,
 	if (!p->mask_irq_channels[cpu]) {
 #endif
 		interrupt_disable(irq);
-		interrupt_unregister(irq);
+		interrupt_unregister(irq, dma);
 #if CONFIG_DMA_AGGREGATED_IRQ
 	}
 #endif
