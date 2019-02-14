@@ -1262,11 +1262,12 @@ static inline int dw_dma_interrupt_register(struct dma *dma, int channel)
 
 static inline void dw_dma_interrupt_unregister(struct dma *dma, int channel)
 {
+	struct dma_pdata *p = dma_get_drvdata(dma);
 	uint32_t irq = dma_irq(dma, cpu_get_id()) +
 		(channel << SOF_IRQ_BIT_SHIFT);
 
 	interrupt_disable(irq);
-	interrupt_unregister(irq);
+	interrupt_unregister(irq, &p->chan[channel].id);
 }
 #else
 static void dw_dma_process_transfer(struct dma_chan_data *chan,
@@ -1399,7 +1400,7 @@ static inline void dw_dma_interrupt_unregister(struct dma *dma, int channel)
 
 	if (!dma->mask_irq_channels) {
 		interrupt_disable(irq);
-		interrupt_unregister(irq);
+		interrupt_unregister(irq, dma);
 	}
 }
 #endif

@@ -945,7 +945,7 @@ static int ssp_remove(struct dai *dai)
 {
 	interrupt_disable(ssp_irq(dai));
 	platform_interrupt_mask(ssp_irq(dai), 0);
-	interrupt_unregister(ssp_irq(dai));
+	interrupt_unregister(ssp_irq(dai), dai);
 
 	pm_runtime_put_sync(SSP_CLK, dai->index);
 

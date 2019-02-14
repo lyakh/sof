@@ -110,7 +110,7 @@ int timer_register(struct timer *timer, void(*handler)(void *arg), void *arg)
 
 void timer_unregister(struct timer *timer)
 {
-	interrupt_unregister(timer->irq);
+	interrupt_unregister(timer->irq, NULL);
 }
 
 void timer_enable(struct timer *timer)

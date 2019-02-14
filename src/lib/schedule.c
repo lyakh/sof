@@ -452,7 +452,7 @@ int scheduler_init(struct sof *sof)
 
 	/* configure scheduler interrupt */
 	interrupt_register(PLATFORM_SCHEDULE_IRQ, IRQ_AUTO_UNMASK,
-			   scheduler_run, NULL);
+			   scheduler_run, *sch);
 	interrupt_enable(PLATFORM_SCHEDULE_IRQ);
 
 	/* allocate arch tasks */
@@ -471,7 +471,7 @@ void scheduler_free(void)
 
 	/* disable and unregister scheduler interrupt */
 	interrupt_disable(PLATFORM_SCHEDULE_IRQ);
-	interrupt_unregister(PLATFORM_SCHEDULE_IRQ);
+	interrupt_unregister(PLATFORM_SCHEDULE_IRQ, *sch);
 
 	/* free arch tasks */
 	arch_free_tasks();

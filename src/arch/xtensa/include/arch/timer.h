@@ -43,6 +43,7 @@ struct timer {
 	uint32_t hitime;	/* high end of 64bit timer */
 	uint32_t hitimeout;
 	uint32_t lowtimeout;
+	void *irq_arg;
 };
 
 /* internal API calls */
