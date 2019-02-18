@@ -176,6 +176,8 @@ int arch_run_task(struct task *task)
 
 int arch_allocate_tasks(void)
 {
+	int ret;
+
 #ifdef CONFIG_TASK_HAVE_PRIORITY_LOW
 	/* irq low */
 	struct irq_task **low = task_irq_low_get();
@@ -184,6 +186,12 @@ int arch_allocate_tasks(void)
 	list_init(&((*low)->list));
 	spinlock_init(&((*low)->lock));
 	(*low)->irq = PLATFORM_IRQ_TASK_LOW;
+
+	ret = interrupt_register((*low)->irq, IRQ_AUTO_UNMASK, _irq_task,
+				 task_irq_low_get());
+	if (ret < 0)
+		return ret;
+	interrupt_enable((*low)->irq);
 #endif
 
 #ifdef CONFIG_TASK_HAVE_PRIORITY_MEDIUM
@@ -194,6 +202,12 @@ int arch_allocate_tasks(void)
 	list_init(&((*med)->list));
 	spinlock_init(&((*med)->lock));
 	(*med)->irq = PLATFORM_IRQ_TASK_MED;
+
+	ret = interrupt_register((*med)->irq, IRQ_AUTO_UNMASK, _irq_task,
+				 task_irq_med_get());
+	if (ret < 0)
+		return ret;
+	interrupt_enable((*med)->irq);
 #endif
 
 	/* irq high */
@@ -203,6 +217,12 @@ int arch_allocate_tasks(void)
 	list_init(&((*high)->list));
 	spinlock_init(&((*high)->lock));
 	(*high)->irq = PLATFORM_IRQ_TASK_HIGH;
+
+	ret = interrupt_register((*high)->irq, IRQ_AUTO_UNMASK, _irq_task,
+				 task_irq_high_get());
+	if (ret < 0)
+		return ret;
+	interrupt_enable((*high)->irq);
 
 	return 0;
 }
@@ -217,8 +237,8 @@ void arch_free_tasks(void)
 	struct irq_task **low = task_irq_low_get();
 
 	spin_lock_irq(&(*low)->lock, flags);
-	interrupt_disable(PLATFORM_IRQ_TASK_LOW);
-	interrupt_unregister(PLATFORM_IRQ_TASK_LOW, task_irq_low_get());
+	interrupt_disable((*low)->irq);
+	interrupt_unregister((*low)->irq, task_irq_low_get());
 	list_item_del(&(*low)->list);
 	spin_unlock_irq(&(*low)->lock, flags);
 #endif
@@ -228,8 +248,8 @@ void arch_free_tasks(void)
 	struct irq_task **med = task_irq_med_get();
 
 	spin_lock_irq(&(*med)->lock, flags);
-	interrupt_disable(PLATFORM_IRQ_TASK_MED);
-	interrupt_unregister(PLATFORM_IRQ_TASK_MED, task_irq_med_get());
+	interrupt_disable((*med)->irq);
+	interrupt_unregister((*med)->irq, task_irq_med_get());
 	list_item_del(&(*med)->list);
 	spin_unlock_irq(&(*med)->lock, flags);
 #endif
@@ -238,32 +258,8 @@ void arch_free_tasks(void)
 	struct irq_task **high = task_irq_high_get();
 
 	spin_lock_irq(&(*high)->lock, flags);
-	interrupt_disable(PLATFORM_IRQ_TASK_HIGH);
-	interrupt_unregister(PLATFORM_IRQ_TASK_HIGH, task_irq_high_get());
+	interrupt_disable((*high)->irq);
+	interrupt_unregister((*high)->irq, task_irq_high_get());
 	list_item_del(&(*high)->list);
 	spin_unlock_irq(&(*high)->lock, flags);
-}
-
-int arch_assign_tasks(void)
-{
-#ifdef CONFIG_TASK_HAVE_PRIORITY_LOW
-	/* irq low */
-	interrupt_register(PLATFORM_IRQ_TASK_LOW, IRQ_AUTO_UNMASK, _irq_task,
-			   task_irq_low_get());
-	interrupt_enable(PLATFORM_IRQ_TASK_LOW);
-#endif
-
-#ifdef CONFIG_TASK_HAVE_PRIORITY_MEDIUM
-	/* irq medium */
-	interrupt_register(PLATFORM_IRQ_TASK_MED, IRQ_AUTO_UNMASK, _irq_task,
-			   task_irq_med_get());
-	interrupt_enable(PLATFORM_IRQ_TASK_MED);
-#endif
-
-	/* irq high */
-	interrupt_register(PLATFORM_IRQ_TASK_HIGH, IRQ_AUTO_UNMASK, _irq_task,
-			   task_irq_high_get());
-	interrupt_enable(PLATFORM_IRQ_TASK_HIGH);
-
-	return 0;
 }
