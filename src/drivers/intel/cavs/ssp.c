@@ -897,7 +897,6 @@ static void ssp_irq_handler(void *data)
 
 	/* clear IRQ */
 	ssp_write(dai, SSSR, ssp_read(dai, SSSR));
-	platform_interrupt_clear(ssp_irq(dai), 1);
 }
 
 static int ssp_probe(struct dai *dai)
