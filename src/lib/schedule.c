@@ -184,7 +184,7 @@ static struct task *schedule_edf(void)
 
 	tracev_schedule("schedule_edf()");
 
-	interrupt_clear(PLATFORM_SCHEDULE_IRQ);
+	interrupt_clear(PLATFORM_SCHEDULE_IRQ, 1);
 
 	while (!list_is_empty(&sch->list)) {
 		spin_lock_irq(&sch->lock, flags);

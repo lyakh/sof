@@ -83,12 +83,12 @@ uint32_t interrupt_disable(uint32_t irq);
 
 static inline void interrupt_set(int irq)
 {
-	arch_interrupt_set(SOF_IRQ_NUMBER(irq));
+	platform_interrupt_set(irq);
 }
 
-static inline void interrupt_clear(int irq)
+static inline void interrupt_clear(int irq, uint32_t mask)
 {
-	arch_interrupt_clear(SOF_IRQ_NUMBER(irq));
+	platform_interrupt_clear(irq, mask);
 }
 
 static inline uint32_t interrupt_global_disable(void)

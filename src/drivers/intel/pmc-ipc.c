@@ -100,14 +100,14 @@ static void irq_handler(void *arg)
 
 		/* Mask Done interrupt before return */
 		shim_write(SHIM_IMRLPESC, shim_read(SHIM_IMRLPESC) | SHIM_IMRLPESC_DONE);
-		interrupt_clear(IRQ_NUM_EXT_PMC);
+		interrupt_clear(IRQ_NUM_EXT_PMC, 1);
 		do_notify();
 	}
 
 	if (isrlpesc & SHIM_ISRLPESC_BUSY) {
 		/* Mask Busy interrupt before return */
 		shim_write(SHIM_IMRLPESC, shim_read(SHIM_IMRLPESC) | SHIM_IMRLPESC_BUSY);
-		interrupt_clear(IRQ_NUM_EXT_PMC);
+		interrupt_clear(IRQ_NUM_EXT_PMC, 1);
 
 		/* place message in Q and process later */
 		_pmc->msg_l = shim_read(SHIM_IPCSCL);

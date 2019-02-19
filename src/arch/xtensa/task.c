@@ -131,7 +131,7 @@ static void _irq_task(void *arg)
 
 	spin_lock_irq(&irq_task->lock, flags);
 
-	interrupt_clear(irq_task->irq);
+	interrupt_clear(irq_task->irq, 1);
 
 	list_for_item_safe(clist, tlist, &irq_task->list) {
 
