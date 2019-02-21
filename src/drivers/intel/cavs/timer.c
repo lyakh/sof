@@ -169,7 +169,7 @@ void timer_enable(struct timer *timer)
 		interrupt_enable(timer->irq);
 		break;
 	case TIMER3:
-		platform_interrupt_unmask(timer->irq, 0);
+		platform_interrupt_unmask(timer->irq);
 		break;
 	}
 }
@@ -183,7 +183,7 @@ void timer_disable(struct timer *timer)
 		interrupt_disable(timer->irq);
 		break;
 	case TIMER3:
-		platform_interrupt_mask(timer->irq, 0);
+		platform_interrupt_mask(timer->irq);
 		break;
 	}
 }
