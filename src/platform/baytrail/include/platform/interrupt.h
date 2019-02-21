@@ -88,4 +88,7 @@
 /* no nested interrupts */
 #define PLATFORM_IRQ_CHILDREN	0
 
+void baytrail_interrupt_mask(uint32_t irq);
+void baytrail_interrupt_unmask(uint32_t irq);
+
 #endif
