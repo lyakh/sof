@@ -163,7 +163,7 @@ static uint32_t irq_enable_child(struct irq_desc *parent, int irq)
 			parent->enabled_count++;
 
 			/* enable the child interrupt */
-			platform_interrupt_unmask(irq, 0);
+			platform_interrupt_unmask(irq);
 		}
 	}
 
@@ -190,7 +190,7 @@ static uint32_t irq_disable_child(struct irq_desc *parent, int irq)
 			parent->enabled_count--;
 
 			/* disable the child interrupt */
-			platform_interrupt_mask(irq, 0);
+			platform_interrupt_mask(irq);
 		}
 	}
 

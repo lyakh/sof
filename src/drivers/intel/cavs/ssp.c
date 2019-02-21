@@ -932,7 +932,7 @@ static int ssp_probe(struct dai *dai)
 	/* Disable dynamic clock gating before touching any register */
 	pm_runtime_get_sync(SSP_CLK, dai->index);
 
-	platform_interrupt_unmask(ssp_irq(dai), 1);
+	platform_interrupt_unmask(ssp_irq(dai));
 	interrupt_enable(ssp_irq(dai));
 
 	ssp_empty_rx_fifo(dai);
@@ -943,7 +943,7 @@ static int ssp_probe(struct dai *dai)
 static int ssp_remove(struct dai *dai)
 {
 	interrupt_disable(ssp_irq(dai));
-	platform_interrupt_mask(ssp_irq(dai), 0);
+	platform_interrupt_mask(ssp_irq(dai));
 	interrupt_unregister(ssp_irq(dai), dai);
 
 	pm_runtime_put_sync(SSP_CLK, dai->index);
