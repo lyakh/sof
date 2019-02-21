@@ -66,4 +66,7 @@
 #define IRQ_MASK_EXT_PARITY	(1 << IRQ_NUM_EXT_PARITY)
 #define IRQ_MASK_TIMER3		(1 << IRQ_NUM_TIMER3)
 
+void haswell_interrupt_mask(uint32_t irq);
+void haswell_interrupt_unmask(uint32_t irq);
+
 #endif

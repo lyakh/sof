@@ -513,7 +513,7 @@ static int ssp_probe(struct dai *dai)
 		return ret;
 	}
 
-	platform_interrupt_unmask(ssp_irq(dai));
+	haswell_interrupt_unmask(ssp_irq(dai));
 	interrupt_enable(ssp_irq(dai));
 
 	return 0;
