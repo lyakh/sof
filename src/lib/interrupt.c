@@ -33,10 +33,75 @@
 #include <sof/interrupt.h>
 #include <sof/interrupt-map.h>
 #include <sof/alloc.h>
+#include <sof/lock.h>
+#include <sof/list.h>
 #include <arch/interrupt.h>
 #include <platform/interrupt.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+static spinlock_t cascade_lock;
+static struct list_item cascade_list = {&cascade_list, &cascade_list};
+
+int interrupt_register_cascade(struct irq_cascade_desc *cascade)
+{
+	struct list_item *list;
+	unsigned long flags;
+	int ret;
+
+	if (!cascade->name)
+		return -EINVAL;
+
+	spin_lock_irq(&cascade_lock, flags);
+
+	list_for_item (list, &cascade_list) {
+		struct irq_cascade_desc *c = container_of(list,
+						struct irq_cascade_desc, list);
+		if (!rstrcmp(c->name, cascade->name)) {
+			ret = -EEXIST;
+			goto unlock;
+		}
+	}
+
+	list_item_append(&cascade->list, &cascade_list);
+
+	ret = 0;
+
+unlock:
+	spin_unlock_irq(&cascade_lock, flags);
+
+	return ret;
+}
+
+struct irq_desc *interrupt_get_parent(uint32_t irq)
+{
+	struct list_item *list;
+	struct irq_desc *parent = NULL;
+	unsigned long flags;
+
+	if (irq < 32)
+		return NULL;
+
+	spin_lock_irq(&cascade_lock, flags);
+
+	list_for_item (list, &cascade_list) {
+		struct irq_cascade_desc *c = container_of(list,
+						struct irq_cascade_desc, list);
+		if (SOF_IRQ_NUMBER(irq) == c->desc.irq) {
+			parent = &c->desc;
+			break;
+		}
+	}
+
+	spin_unlock_irq(&cascade_lock, flags);
+
+	return parent;
+}
+
+void interrupt_init(void)
+{
+	spinlock_init(&cascade_lock);
+}
 
 static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 			      void (*handler)(void *arg), void *arg)
@@ -207,7 +272,7 @@ int interrupt_register(uint32_t irq, int unmask, void (*handler)(void *arg),
 	struct irq_desc *parent;
 
 	/* no parent means we are registering DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		return arch_interrupt_register(irq, handler, arg);
 	else
@@ -219,7 +284,7 @@ void interrupt_unregister(uint32_t irq, const void *arg)
 	struct irq_desc *parent;
 
 	/* no parent means we are unregistering DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		arch_interrupt_unregister(irq);
 	else
@@ -231,7 +296,7 @@ uint32_t interrupt_enable(uint32_t irq)
 	struct irq_desc *parent;
 
 	/* no parent means we are enabling DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		return arch_interrupt_enable_mask(1 << irq);
 	else
@@ -243,7 +308,7 @@ uint32_t interrupt_disable(uint32_t irq)
 	struct irq_desc *parent;
 
 	/* no parent means we are disabling DSP internal IRQ */
-	parent = platform_irq_get_parent(irq);
+	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		return arch_interrupt_disable_mask(1 << irq);
 	else

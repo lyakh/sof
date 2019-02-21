@@ -70,6 +70,8 @@ struct irq_desc {
 struct irq_cascade_desc {
 	struct irq_desc desc;
 
+	const char *name;
+	struct list_item list;
 	spinlock_t lock;
 	uint32_t num_children;
 	struct list_item child[PLATFORM_IRQ_CHILDREN];
@@ -80,6 +82,10 @@ int interrupt_register(uint32_t irq, int unmask, void(*handler)(void *arg),
 void interrupt_unregister(uint32_t irq, const void *arg);
 uint32_t interrupt_enable(uint32_t irq);
 uint32_t interrupt_disable(uint32_t irq);
+
+void interrupt_init(void);
+int interrupt_register_cascade(struct irq_cascade_desc *cascade);
+struct irq_desc *interrupt_get_parent(uint32_t irq);
 
 static inline void interrupt_set(int irq)
 {

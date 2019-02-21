@@ -128,27 +128,15 @@ static void irq_lvl2_level5_handler(void *data)
 
 /* DSP internal interrupts */
 static struct irq_cascade_desc dsp_irq[] = {
-	{.desc = {IRQ_NUM_EXT_LEVEL2, irq_lvl2_level2_handler, },},
-	{.desc = {IRQ_NUM_EXT_LEVEL3, irq_lvl2_level3_handler, },},
-	{.desc = {IRQ_NUM_EXT_LEVEL4, irq_lvl2_level4_handler, },},
-	{.desc = {IRQ_NUM_EXT_LEVEL5, irq_lvl2_level5_handler, },},
+	{.name = "level2",
+	 .desc = {IRQ_NUM_EXT_LEVEL2, irq_lvl2_level2_handler, },},
+	{.name = "level3",
+	 .desc = {IRQ_NUM_EXT_LEVEL3, irq_lvl2_level3_handler, },},
+	{.name = "level4",
+	 .desc = {IRQ_NUM_EXT_LEVEL4, irq_lvl2_level4_handler, },},
+	{.name = "level5",
+	 .desc = {IRQ_NUM_EXT_LEVEL5, irq_lvl2_level5_handler, },},
 };
-
-struct irq_desc *platform_irq_get_parent(uint32_t irq)
-{
-	switch (SOF_IRQ_NUMBER(irq)) {
-	case IRQ_NUM_EXT_LEVEL2:
-		return &dsp_irq[0].desc;
-	case IRQ_NUM_EXT_LEVEL3:
-		return &dsp_irq[1].desc;
-	case IRQ_NUM_EXT_LEVEL4:
-		return &dsp_irq[2].desc;
-	case IRQ_NUM_EXT_LEVEL5:
-		return &dsp_irq[3].desc;
-	default:
-		return NULL;
-	}
-}
 
 uint32_t platform_interrupt_get_enabled(void)
 {
@@ -203,13 +191,13 @@ void platform_interrupt_unmask(uint32_t irq)
 
 void platform_interrupt_set(uint32_t irq)
 {
-	if (!platform_irq_get_parent(irq))
+	if (!interrupt_get_parent(irq))
 		arch_interrupt_set(SOF_IRQ_NUMBER(irq));
 }
 
 void platform_interrupt_clear(uint32_t irq, uint32_t mask)
 {
-	if (!platform_irq_get_parent(irq))
+	if (!interrupt_get_parent(irq))
 		arch_interrupt_clear(SOF_IRQ_NUMBER(irq));
 }
 
@@ -231,5 +219,7 @@ void platform_interrupt_init(void)
 		spinlock_init(&dsp_irq[i].lock);
 		for (j = 0; j < PLATFORM_IRQ_CHILDREN; j++)
 			list_init(&dsp_irq[i].child[j]);
+
+		interrupt_register_cascade(&dsp_irq[i]);
 	}
 }
