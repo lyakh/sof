@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <sof/init.h>
+#include <sof/interrupt.h>
 #include <sof/task.h>
 #include <sof/debug.h>
 #include <sof/panic.h>
@@ -31,6 +32,8 @@ static struct sof sof;
 int master_core_init(struct sof *sof)
 {
 	int err;
+
+	interrupt_init();
 
 	/* init architecture */
 	trace_point(TRACE_BOOT_ARCH);
