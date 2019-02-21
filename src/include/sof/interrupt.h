@@ -67,6 +67,11 @@ struct irq_desc {
 	struct list_item irq_list;
 };
 
+struct irq_cascade_ops {
+	void (*mask)(struct irq_desc *desc, uint32_t irq);
+	void (*unmask)(struct irq_desc *desc, uint32_t irq);
+};
+
 struct irq_cascade_desc {
 	struct irq_desc desc;
 
@@ -75,6 +80,8 @@ struct irq_cascade_desc {
 	spinlock_t lock;
 	uint32_t num_children;
 	struct list_item child[PLATFORM_IRQ_CHILDREN];
+
+	const struct irq_cascade_ops *ops;
 };
 
 int interrupt_register(uint32_t irq, int unmask, void(*handler)(void *arg),
@@ -84,8 +91,26 @@ uint32_t interrupt_enable(uint32_t irq);
 uint32_t interrupt_disable(uint32_t irq);
 
 void interrupt_init(void);
-int interrupt_register_cascade(struct irq_cascade_desc *cascade);
+int interrupt_cascade_register(struct irq_cascade_desc *cascade);
 struct irq_desc *interrupt_get_parent(uint32_t irq);
+
+static inline void interrupt_cascade_mask(uint32_t irq)
+{
+	struct irq_desc *parent = interrupt_get_parent(irq);
+	struct irq_cascade_desc *cascade = container_of(parent,
+						struct irq_cascade_desc, desc);
+	if (parent && cascade->ops->mask)
+		cascade->ops->mask(parent, irq);
+}
+
+static inline void interrupt_cascade_unmask(uint32_t irq)
+{
+	struct irq_desc *parent = interrupt_get_parent(irq);
+	struct irq_cascade_desc *cascade = container_of(parent,
+						struct irq_cascade_desc, desc);
+	if (parent && cascade->ops->unmask)
+		cascade->ops->unmask(parent, irq);
+}
 
 static inline void interrupt_set(int irq)
 {

@@ -43,13 +43,13 @@
 static spinlock_t cascade_lock;
 static struct list_item cascade_list = {&cascade_list, &cascade_list};
 
-int interrupt_register_cascade(struct irq_cascade_desc *cascade)
+int interrupt_cascade_register(struct irq_cascade_desc *cascade)
 {
 	struct list_item *list;
 	unsigned long flags;
 	int ret;
 
-	if (!cascade->name)
+	if (!cascade->name || !cascade->ops)
 		return -EINVAL;
 
 	spin_lock_irq(&cascade_lock, flags);
@@ -228,7 +228,7 @@ static uint32_t irq_enable_child(struct irq_desc *parent, int irq)
 			parent->enabled_count++;
 
 			/* enable the child interrupt */
-			platform_interrupt_unmask(irq);
+			interrupt_cascade_unmask(irq);
 		}
 	}
 
@@ -255,7 +255,7 @@ static uint32_t irq_disable_child(struct irq_desc *parent, int irq)
 			parent->enabled_count--;
 
 			/* disable the child interrupt */
-			platform_interrupt_mask(irq);
+			interrupt_cascade_mask(irq);
 		}
 	}
 
