@@ -50,7 +50,7 @@ int interrupt_cascade_register(const struct irq_cascade_tmpl *tmpl)
 
 	spinlock_init(&(*cascade)->lock);
 	for (i = 0; i < PLATFORM_IRQ_CHILDREN; i++)
-		list_init(&(*cascade)->child[i]);
+		list_init(&(*cascade)->child[i].list);
 
 	(*cascade)->name = tmpl->name;
 	(*cascade)->ops = tmpl->ops;
@@ -105,16 +105,17 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 	int ret = 0;
 	struct irq_desc *child;
 	struct irq_cascade_desc *cascade;
-	struct list_item *list;
+	struct list_item *list, *head;
 
 	if (parent == NULL)
 		return -EINVAL;
 
 	cascade = container_of(parent, struct irq_cascade_desc, desc);
+	head = &cascade->child[SOF_IRQ_BIT(irq)].list;
 
 	spin_lock(&cascade->lock);
 
-	list_for_item (list, &cascade->child[SOF_IRQ_BIT(irq)]) {
+	list_for_item (list, head) {
 		child = container_of(list, struct irq_desc, irq_list);
 
 		if (child->handler_arg == arg) {
@@ -136,15 +137,12 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 		goto finish;
 	}
 
-	child->enabled_count = 0;
 	child->handler = handler;
 	child->handler_arg = arg;
-	child->id = SOF_IRQ_ID(irq);
 	child->unmask = unmask;
 	child->cpu_mask = 1 << cpu_get_id();
 
-	list = &cascade->child[SOF_IRQ_BIT(irq)];
-	list_item_append(&child->irq_list, list);
+	list_item_append(&child->irq_list, head);
 
 	/* do we need to register parent ? */
 	if (!cascade->num_children)
@@ -166,16 +164,16 @@ static void irq_unregister_child(struct irq_desc *parent, int irq,
 	struct irq_desc *child;
 	struct irq_cascade_desc *cascade = container_of(parent,
 						struct irq_cascade_desc, desc);
-	struct list_item *clist = &cascade->child[SOF_IRQ_BIT(irq)];
+	struct list_item *list, *head = &cascade->child[SOF_IRQ_BIT(irq)].list;
 
 	spin_lock(&cascade->lock);
 
 	/* does child already exist ? */
-	if (list_is_empty(clist))
+	if (list_is_empty(head))
 		goto finish;
 
-	list_for_item (clist, &cascade->child[SOF_IRQ_BIT(irq)]) {
-		child = container_of(clist, struct irq_desc, irq_list);
+	list_for_item (list, head) {
+		child = container_of(list, struct irq_desc, irq_list);
 
 		if (child->handler_arg == arg) {
 			list_item_del(&child->irq_list);
@@ -199,28 +197,19 @@ finish:
 
 static uint32_t irq_enable_child(struct irq_desc *parent, int irq)
 {
-	struct irq_desc *child;
-	struct list_item *clist;
 	struct irq_cascade_desc *cascade = container_of(parent,
 						struct irq_cascade_desc, desc);
+	struct irq_child *child = cascade->child + SOF_IRQ_BIT(irq);
 
 	spin_lock(&cascade->lock);
 
-	/* enable the parent interrupt */
-	if (parent->enabled_count == 0)
-		arch_interrupt_enable_mask(1 << parent->irq);
+	if (!child->enable_count++) {
+		/* enable the parent interrupt */
+		if (!cascade->enable_count++)
+			arch_interrupt_enable_mask(1 << parent->irq);
 
-	list_for_item(clist, &cascade->child[SOF_IRQ_BIT(irq)]) {
-		child = container_of(clist, struct irq_desc, irq_list);
-
-		if ((SOF_IRQ_ID(irq) == child->id) &&
-		    !child->enabled_count) {
-			child->enabled_count = 1;
-			parent->enabled_count++;
-
-			/* enable the child interrupt */
-			interrupt_unmask(irq, cpu_get_id());
-		}
+		/* enable the child interrupt */
+		interrupt_unmask(irq, cpu_get_id());
 	}
 
 	spin_unlock(&cascade->lock);
@@ -230,29 +219,23 @@ static uint32_t irq_enable_child(struct irq_desc *parent, int irq)
 
 static uint32_t irq_disable_child(struct irq_desc *parent, int irq)
 {
-	struct irq_desc *child;
-	struct list_item *clist;
 	struct irq_cascade_desc *cascade = container_of(parent,
 						struct irq_cascade_desc, desc);
+	struct irq_child *child = cascade->child + SOF_IRQ_BIT(irq);
 
 	spin_lock(&cascade->lock);
 
-	list_for_item(clist, &cascade->child[SOF_IRQ_BIT(irq)]) {
-		child = container_of(clist, struct irq_desc, irq_list);
+	if (!child->enable_count) {
+		trace_error(TRACE_CLASS_IRQ,
+			    "error: IRQ %x unbalanced interrupt_disable()",
+			    irq);
+	} else if (!--child->enable_count) {
+		/* disable the child interrupt */
+		interrupt_mask(irq, cpu_get_id());
 
-		if ((SOF_IRQ_ID(irq) == child->id) &&
-		    child->enabled_count) {
-			child->enabled_count = 0;
-			parent->enabled_count--;
-
-			/* disable the child interrupt */
-			interrupt_mask(irq, cpu_get_id());
-
-			if (!parent->enabled_count)
-				arch_interrupt_disable_mask(1 << parent->irq);
-
-			break;
-		}
+		/* disable the parent interrupt */
+		if (!--cascade->enable_count)
+			arch_interrupt_disable_mask(1 << parent->irq);
 	}
 
 	spin_unlock(&cascade->lock);
