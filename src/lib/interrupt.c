@@ -223,7 +223,7 @@ static uint32_t irq_enable_child(struct irq_desc *parent, int irq)
 			parent->enabled_count++;
 
 			/* enable the child interrupt */
-			interrupt_unmask(irq);
+			interrupt_unmask(irq, cpu_get_id());
 		}
 	}
 
@@ -250,7 +250,7 @@ static uint32_t irq_disable_child(struct irq_desc *parent, int irq)
 			parent->enabled_count--;
 
 			/* disable the child interrupt */
-			interrupt_mask(irq);
+			interrupt_mask(irq, cpu_get_id());
 
 			if (!parent->enabled_count)
 				arch_interrupt_disable_mask(1 <<

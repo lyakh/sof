@@ -50,8 +50,8 @@ struct irq_desc {
  * @unmask:	unmask an interrupt
  */
 struct irq_cascade_ops {
-	void (*mask)(struct irq_desc *desc, uint32_t irq);
-	void (*unmask)(struct irq_desc *desc, uint32_t irq);
+	void (*mask)(struct irq_desc *desc, uint32_t irq, unsigned int cpu);
+	void (*unmask)(struct irq_desc *desc, uint32_t irq, unsigned int cpu);
 };
 
 /**
