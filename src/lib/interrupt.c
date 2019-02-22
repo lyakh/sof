@@ -177,11 +177,7 @@ static void irq_unregister_child(struct irq_desc *parent, int irq,
 	list_for_item (clist, &cascade->child[SOF_IRQ_BIT(irq)]) {
 		child = container_of(clist, struct irq_desc, irq_list);
 
-		if (SOF_IRQ_ID(irq) == child->id) {
-			if (child->handler_arg != arg)
-				trace_error(TRACE_CLASS_IRQ,
-					    "error: IRQ 0x%x handler argument mismatch!",
-					    irq);
+		if (child->handler_arg == arg) {
 			list_item_del(&child->irq_list);
 			cascade->num_children--;
 			rfree(child);
