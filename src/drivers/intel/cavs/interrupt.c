@@ -82,7 +82,7 @@ static inline void irq_lvl2_handler(void *data, int level, uint32_t ilxsd,
 			child = container_of(clist, struct irq_desc, irq_list);
 
 			if (child && child->handler &&
-			    (child->cpu_mask & 1 << core)) {
+			    child->cpu_mask & 1 << core) {
 				child->handler(child->handler_arg);
 			} else {
 				/* nobody cared ? */

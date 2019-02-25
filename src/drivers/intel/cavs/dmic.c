@@ -1521,7 +1521,7 @@ static int dmic_probe(struct dai *dai)
 	pm_runtime_get_sync(DMIC_CLK, dai->index);
 
 	interrupt_unmask(irq, cpu_get_id());
-	interrupt_enable(irq);
+	interrupt_enable(irq, dai);
 
 	return 0;
 }
@@ -1531,7 +1531,7 @@ static int dmic_remove(struct dai *dai)
 	int irq = dmic_irq(dai);
 	int i;
 
-	interrupt_disable(irq);
+	interrupt_disable(irq, dai);
 	interrupt_mask(irq, cpu_get_id());
 	interrupt_unregister(irq, dai);
 
