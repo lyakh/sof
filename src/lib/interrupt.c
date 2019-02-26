@@ -23,6 +23,12 @@ static union {
 	uint8_t bytes[PLATFORM_DCACHE_ALIGN];
 } cascade_root;
 
+static int interrupt_register_internal(uint32_t irq, int unmask,
+				       void (*handler)(void *arg),
+				       void *arg, struct irq_desc *desc);
+static void interrupt_unregister_internal(uint32_t irq, const void *arg,
+					  struct irq_desc *desc);
+
 int interrupt_cascade_register(const struct irq_cascade_tmpl *tmpl)
 {
 	struct irq_cascade_desc **cascade;
@@ -137,7 +143,7 @@ void interrupt_init(void)
 }
 
 static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
-			      void (*handler)(void *arg), void *arg)
+		void (*handler)(void *arg), void *arg, struct irq_desc *desc)
 {
 	int hw_irq, ret = 0;
 	struct irq_desc *child;
@@ -149,14 +155,10 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 
 	cascade = container_of(parent, struct irq_cascade_desc, desc);
 
-	spin_lock(&cascade->lock);
-
 	hw_irq = irq - cascade->irq_base;
 
-	if (hw_irq < 0 || cascade->irq_base + PLATFORM_IRQ_CHILDREN <= irq) {
-		ret = -EINVAL;
-		goto finish;
-	}
+	if (hw_irq < 0 || cascade->irq_base + PLATFORM_IRQ_CHILDREN <= irq)
+		return -EINVAL;
 
 	head = &cascade->child[hw_irq].list;
 
@@ -167,51 +169,51 @@ static int irq_register_child(struct irq_desc *parent, int irq, int unmask,
 			trace_error(TRACE_CLASS_IRQ,
 				    "error: IRQ 0x%x handler argument re-used!",
 				    irq);
-			ret = -EEXIST;
-			goto finish;
+			return -EEXIST;
 		}
 
 		if (child->unmask != unmask) {
 			trace_error(TRACE_CLASS_IRQ,
 				    "error: IRQ 0x%x flags differ!", irq);
-			ret = -EINVAL;
-			goto finish;
+			return -EINVAL;
 		}
 	}
 
-	/* init child from run-time, may be registered and unregistered
-	 * many times at run-time
-	 */
-	child = rzalloc(RZONE_SYS_RUNTIME | RZONE_FLAG_UNCACHED,
-			SOF_MEM_CAPS_RAM, sizeof(struct irq_desc));
-	if (!child) {
-		ret = -ENOMEM;
-		goto finish;
+	if (!desc) {
+		/* init child from run-time, may be registered and unregistered
+		 * many times at run-time
+		 */
+		child = rzalloc(RZONE_SYS_RUNTIME | RZONE_FLAG_UNCACHED,
+				SOF_MEM_CAPS_RAM, sizeof(struct irq_desc));
+		if (!child)
+			return -ENOMEM;
+
+		child->handler = handler;
+		child->handler_arg = arg;
+		child->irq = irq;
+	} else {
+		child = desc;
+		child->cpu_mask = 0;
 	}
 
-	child->handler = handler;
-	child->handler_arg = arg;
 	child->unmask = unmask;
-	child->irq = irq;
 
 	list_item_append(&child->irq_list, head);
 
 	/* do we need to register parent ? */
 	if (!cascade->num_children)
-		ret = interrupt_register(parent->irq, IRQ_AUTO_UNMASK,
-					 parent->handler, parent);
+		ret = interrupt_register_internal(parent->irq, IRQ_AUTO_UNMASK,
+					parent->handler, parent, parent);
 
 	/* increment number of children */
 	if (!ret)
 		cascade->num_children++;
 
-finish:
-	spin_unlock(&cascade->lock);
 	return ret;
 }
 
 static void irq_unregister_child(struct irq_desc *parent, int irq,
-				 const void *arg)
+				 const void *arg, struct irq_desc *desc)
 {
 	struct irq_desc *child;
 	struct irq_cascade_desc *cascade = container_of(parent,
@@ -219,28 +221,26 @@ static void irq_unregister_child(struct irq_desc *parent, int irq,
 	int hw_irq = irq - cascade->irq_base;
 	struct list_item *list, *head = &cascade->child[hw_irq].list;
 
-	spin_lock(&cascade->lock);
-
 	list_for_item (list, head) {
 		child = container_of(list, struct irq_desc, irq_list);
 
 		if (child->handler_arg == arg) {
 			list_item_del(&child->irq_list);
 			cascade->num_children--;
-			rfree(child);
+			if (!desc)
+				rfree(child);
 
 			/*
 			 * unregister the root interrupt if this l2 is the last
 			 * registered child.
 			 */
 			if (!cascade->num_children)
-				interrupt_unregister(parent->irq, parent);
+				interrupt_unregister_internal(parent->irq,
+							      parent, parent);
 
 			break;
 		}
 	}
-
-	spin_unlock(&cascade->lock);
 }
 
 static uint32_t irq_enable_child(struct irq_desc *parent, int irq, void *arg)
@@ -250,8 +250,14 @@ static uint32_t irq_enable_child(struct irq_desc *parent, int irq, void *arg)
 	struct irq_child *child;
 	unsigned int cpu = cpu_get_id();
 	struct list_item *list;
+	unsigned long flags;
 
-	spin_lock(&cascade->lock);
+	/*
+	 * Locking is child to parent: when called recursively we are already
+	 * holding the child's lock and then also taking the parent's lock. The
+	 * same holds for the interrupt_(un)register() paths.
+	 */
+	spin_lock_irq(&cascade->lock, flags);
 
 	child = cascade->child + irq - cascade->irq_base;
 
@@ -274,7 +280,7 @@ static uint32_t irq_enable_child(struct irq_desc *parent, int irq, void *arg)
 		interrupt_unmask(irq, cpu);
 	}
 
-	spin_unlock(&cascade->lock);
+	spin_unlock_irq(&cascade->lock, flags);
 
 	return 0;
 }
@@ -286,8 +292,9 @@ static uint32_t irq_disable_child(struct irq_desc *parent, int irq, void *arg)
 	struct irq_child *child;
 	unsigned int cpu = cpu_get_id();
 	struct list_item *list;
+	unsigned long flags;
 
-	spin_lock(&cascade->lock);
+	spin_lock_irq(&cascade->lock, flags);
 
 	child = cascade->child + irq - cascade->irq_base;
 
@@ -315,7 +322,7 @@ static uint32_t irq_disable_child(struct irq_desc *parent, int irq, void *arg)
 			interrupt_disable(parent->irq, parent->handler_arg);
 	}
 
-	spin_unlock(&cascade->lock);
+	spin_unlock_irq(&cascade->lock, flags);
 
 	return 0;
 }
@@ -323,26 +330,59 @@ static uint32_t irq_disable_child(struct irq_desc *parent, int irq, void *arg)
 int interrupt_register(uint32_t irq, int unmask, void (*handler)(void *arg),
 		       void *arg)
 {
+	return interrupt_register_internal(irq, unmask, handler, arg, NULL);
+}
+
+static int interrupt_register_internal(uint32_t irq, int unmask,
+				       void (*handler)(void *arg),
+				       void *arg, struct irq_desc *desc)
+{
+	struct irq_cascade_desc *cascade;
 	struct irq_desc *parent;
+	/* Avoid a bogus compiler warning */
+	unsigned long flags = 0;
+	int ret;
 
 	/* no parent means we are registering DSP internal IRQ */
 	parent = interrupt_get_parent(irq);
 	if (parent == NULL)
 		return arch_interrupt_register(irq, handler, arg);
-	else
-		return irq_register_child(parent, irq, unmask, handler, arg);
+
+	cascade = container_of(parent, struct irq_cascade_desc, desc);
+
+	spin_lock_irq(&cascade->lock, flags);
+	ret = irq_register_child(parent, irq, unmask, handler, arg,
+				 desc);
+	spin_unlock_irq(&cascade->lock, flags);
+
+	return ret;
 }
 
 void interrupt_unregister(uint32_t irq, const void *arg)
 {
+	interrupt_unregister_internal(irq, arg, NULL);
+}
+
+static void interrupt_unregister_internal(uint32_t irq, const void *arg,
+					  struct irq_desc *desc)
+{
+	struct irq_cascade_desc *cascade;
 	struct irq_desc *parent;
+	/* Avoid a bogus compiler warning */
+	unsigned long flags = 0;
 
 	/* no parent means we are unregistering DSP internal IRQ */
 	parent = interrupt_get_parent(irq);
-	if (parent == NULL)
+	if (parent == NULL) {
 		arch_interrupt_unregister(irq);
-	else
-		irq_unregister_child(parent, irq, arg);
+		return;
+	}
+
+	cascade = container_of(parent, struct irq_cascade_desc, desc);
+
+	spin_lock_irq(&cascade->lock, flags);
+	irq_unregister_child(parent, irq, arg, desc);
+	spin_unlock_irq(&cascade->lock, flags);
 }
 
 uint32_t interrupt_enable(uint32_t irq, void *arg)
