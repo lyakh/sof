@@ -133,7 +133,8 @@ struct timesource_data platform_generic_queue[] = {
 {
 	.timer	 = {
 		.id = TIMER3, /* external timer */
-		.irq = IRQ_EXT_TSTAMP0_LVL2(0),
+		.irq = IRQ_EXT_TSTAMP0_LVL2,
+		.irq_name = irq_name_level2,
 	},
 	.clk		= CLK_SSP,
 	.notifier	= NOTIFIER_ID_SSP_FREQ,
@@ -144,7 +145,8 @@ struct timesource_data platform_generic_queue[] = {
 {
 	.timer	 = {
 		.id = TIMER3, /* external timer */
-		.irq = IRQ_EXT_TSTAMP0_LVL2(1),
+		.irq = IRQ_EXT_TSTAMP0_LVL2,
+		.irq_name = irq_name_level2,
 	},
 	.clk		= CLK_SSP,
 	.notifier	= NOTIFIER_ID_SSP_FREQ,
@@ -156,7 +158,8 @@ struct timesource_data platform_generic_queue[] = {
 {
 	.timer	 = {
 		.id = TIMER3, /* external timer */
-		.irq = IRQ_EXT_TSTAMP0_LVL2(2),
+		.irq = IRQ_EXT_TSTAMP0_LVL2,
+		.irq_name = irq_name_level2,
 	},
 	.clk		= CLK_SSP,
 	.notifier	= NOTIFIER_ID_SSP_FREQ,
@@ -167,7 +170,8 @@ struct timesource_data platform_generic_queue[] = {
 {
 	.timer	 = {
 		.id = TIMER3, /* external timer */
-		.irq = IRQ_EXT_TSTAMP0_LVL2(3),
+		.irq = IRQ_EXT_TSTAMP0_LVL2,
+		.irq_name = irq_name_level2,
 	},
 	.clk		= CLK_SSP,
 	.notifier	= NOTIFIER_ID_SSP_FREQ,

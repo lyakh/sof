@@ -10,7 +10,6 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <sof/interrupt-map.h>
 
 /* IRQ numbers */
 #define IRQ_NUM_TIMER0		2	/* Level 2 */

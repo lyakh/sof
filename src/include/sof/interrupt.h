@@ -65,6 +65,7 @@ struct irq_cascade_ops {
  * struct irq_cascade_desc - cascading interrupt controller descriptor
  *
  * @name:	name of the controller
+ * @irq_base:	first virtual IRQ number, assigned to this controller
  * @ops:	cascading interrupt controller driver operations
  * @desc:	the interrupt, that this controller is generating
  * @next:	link to the global list of interrupt controllers
@@ -75,6 +76,7 @@ struct irq_cascade_ops {
  */
 struct irq_cascade_desc {
 	const char *name;
+	int irq_base;
 	const struct irq_cascade_ops *ops;
 
 	struct irq_desc desc;
@@ -105,11 +107,13 @@ uint32_t interrupt_disable(uint32_t irq, void *arg);
  * On platforms, supporting cascading interrupts cascaded interrupt numbers
  * have SOF_IRQ_LEVEL(irq) != 0.
  */
-#define interrupt_is_dsp_direct(irq) (!SOF_IRQ_LEVEL(irq))
+#define interrupt_is_dsp_direct(irq) (!PLATFORM_IRQ_CHILDREN || \
+					irq < PLATFORM_IRQ_CHILDREN)
 
 void interrupt_init(void);
 int interrupt_cascade_register(const struct irq_cascade_tmpl *tmpl);
 struct irq_desc *interrupt_get_parent(uint32_t irq);
+int interrupt_get_irq(unsigned int irq, const char *cascade);
 
 static inline void interrupt_set(int irq)
 {

@@ -10,7 +10,6 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <sof/interrupt-map.h>
 
 #define PLATFORM_IRQ_CHILDREN	0
 
