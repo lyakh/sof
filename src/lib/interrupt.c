@@ -53,15 +53,13 @@ int interrupt_cascade_register(const struct irq_cascade_tmpl *tmpl)
 		}
 	}
 
-	*cascade = rmalloc(RZONE_SYS | RZONE_FLAG_UNCACHED, SOF_MEM_CAPS_RAM,
+	*cascade = rzalloc(RZONE_SYS | RZONE_FLAG_UNCACHED, SOF_MEM_CAPS_RAM,
 			   sizeof(**cascade));
 
 	spinlock_init(&(*cascade)->lock);
-	for (i = 0; i < PLATFORM_IRQ_CHILDREN; i++)
-		list_init(&(*cascade)->child[i].list);
-
 	(*cascade)->name = tmpl->name;
 	(*cascade)->ops = tmpl->ops;
+	(*cascade)->global_mask = tmpl->global_mask;
 	(*cascade)->desc.irq = tmpl->irq;
 	(*cascade)->desc.handler = tmpl->handler;
 	(*cascade)->desc.handler_arg = &(*cascade)->desc;
@@ -69,6 +67,15 @@ int interrupt_cascade_register(const struct irq_cascade_tmpl *tmpl)
 
 	cascade_root.last_irq += ARRAY_SIZE((*cascade)->child);
 	dcache_writeback_region(&cascade_root, sizeof(cascade_root));
+
+	for (i = 0; i < PLATFORM_IRQ_CHILDREN; i++) {
+		unsigned int j;
+
+		list_init(&(*cascade)->child[i].list);
+		/* Mask all child interrupts on all CPUs */
+		for (j = 0; j < PLATFORM_CORE_COUNT; j++)
+			interrupt_mask((*cascade)->irq_base + i, j);
+	}
 
 	ret = 0;
 
@@ -242,6 +249,7 @@ static uint32_t irq_enable_child(struct irq_cascade_desc *cascade, int irq,
 	unsigned int cpu = cpu_get_id();
 	struct list_item *list;
 	unsigned long flags;
+	unsigned int child_idx;
 
 	/*
 	 * Locking is child to parent: when called recursively we are already
@@ -251,6 +259,7 @@ static uint32_t irq_enable_child(struct irq_cascade_desc *cascade, int irq,
 	spin_lock_irq(&cascade->lock, flags);
 
 	child = cascade->child + irq - cascade->irq_base;
+	child_idx = cascade->global_mask ? 0 : cpu;
 
 	list_for_item (list, &child->list) {
 		struct irq_desc *d = container_of(list,
@@ -262,9 +271,9 @@ static uint32_t irq_enable_child(struct irq_cascade_desc *cascade, int irq,
 		}
 	}
 
-	if (!child->enable_count++) {
+	if (!child->enable_count[child_idx]++) {
 		/* enable the parent interrupt */
-		if (!cascade->enable_count++)
+		if (!cascade->enable_count[cpu]++)
 			interrupt_enable(cascade->desc.irq,
 					 cascade->desc.handler_arg);
 
@@ -284,10 +293,12 @@ static uint32_t irq_disable_child(struct irq_cascade_desc *cascade, int irq,
 	unsigned int cpu = cpu_get_id();
 	struct list_item *list;
 	unsigned long flags;
+	unsigned int child_idx;
 
 	spin_lock_irq(&cascade->lock, flags);
 
 	child = cascade->child + irq - cascade->irq_base;
+	child_idx = cascade->global_mask ? 0 : cpu;
 
 	list_for_item (list, &child->list) {
 		struct irq_desc *d = container_of(list,
@@ -300,16 +311,16 @@ static uint32_t irq_disable_child(struct irq_cascade_desc *cascade, int irq,
 		}
 	}
 
-	if (!child->enable_count) {
+	if (!child->enable_count[child_idx]) {
 		trace_error(TRACE_CLASS_IRQ,
 			    "error: IRQ %x unbalanced interrupt_disable()",
 			    irq);
-	} else if (!--child->enable_count) {
+	} else if (!--child->enable_count[child_idx]) {
 		/* disable the child interrupt */
 		interrupt_mask(irq, cpu);
 
 		/* disable the parent interrupt */
-		if (!--cascade->enable_count)
+		if (!--cascade->enable_count[cpu])
 			interrupt_disable(cascade->desc.irq,
 					  cascade->desc.handler_arg);
 	}

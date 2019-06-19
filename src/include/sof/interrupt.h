@@ -8,6 +8,7 @@
 #ifndef __INCLUDE_INTERRUPT__
 #define __INCLUDE_INTERRUPT__
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <arch/interrupt.h>
 #include <platform/interrupt.h>
@@ -27,11 +28,11 @@
 /**
  * struct irq_child - child IRQ descriptor for cascading IRQ controllers
  *
- * @enable_count: IRQ enable counter
+ * @enable_count: per-core IRQ enable counters
  * @list:	head for IRQ descriptors, sharing this interrupt
  */
 struct irq_child {
-	int enable_count;
+	int enable_count[PLATFORM_CORE_COUNT];
 	struct list_item list;
 };
 
@@ -74,7 +75,8 @@ struct irq_cascade_ops {
  * @ops:	cascading interrupt controller driver operations
  * @desc:	the interrupt, that this controller is generating
  * @next:	link to the global list of interrupt controllers
- * @lock:	protect child lists in the below array
+ * @global_mask: the controller cannot mask input interrupts per core
+ * @lock:	protect child lists, enable and child counters
  * @enable_count: enabled child interrupt counter
  * @num_children: number of children
  * @child:	array of child lists - one per multiplexed IRQ
@@ -88,8 +90,9 @@ struct irq_cascade_desc {
 
 	struct irq_cascade_desc *next;
 
+	bool global_mask;
 	spinlock_t lock;
-	int enable_count;
+	int enable_count[PLATFORM_CORE_COUNT];
 	uint32_t num_children;
 	struct irq_child child[PLATFORM_IRQ_CHILDREN];
 };
@@ -100,6 +103,7 @@ struct irq_cascade_tmpl {
 	const struct irq_cascade_ops *ops;
 	int irq;
 	void (*handler)(void *arg);
+	bool global_mask;
 };
 
 int interrupt_register(uint32_t irq, int unmask, void(*handler)(void *arg),

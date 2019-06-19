@@ -44,6 +44,9 @@
 /* DSP default delay in cycles */
 #define PLATFORM_DEFAULT_DELAY	12
 
+/* DSP number of cores */
+#define PLATFORM_CORE_COUNT	1
+
 static inline void platform_panic(uint32_t p) {}
 
 extern struct timer *platform_timer;

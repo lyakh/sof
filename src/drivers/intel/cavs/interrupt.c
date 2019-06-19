@@ -201,21 +201,25 @@ static const struct irq_cascade_tmpl dsp_irq[4] = {
 		.irq = IRQ_NUM_EXT_LEVEL2,
 		.handler = irq_lvl2_level2_handler,
 		.ops = &irq_ops,
+		.global_mask = false,
 	}, {
 		.name = irq_name_level3,
 		.irq = IRQ_NUM_EXT_LEVEL3,
 		.handler = irq_lvl2_level3_handler,
 		.ops = &irq_ops,
+		.global_mask = false,
 	}, {
 		.name = irq_name_level4,
 		.irq = IRQ_NUM_EXT_LEVEL4,
 		.handler = irq_lvl2_level4_handler,
 		.ops = &irq_ops,
+		.global_mask = false,
 	}, {
 		.name = irq_name_level5,
 		.irq = IRQ_NUM_EXT_LEVEL5,
 		.handler = irq_lvl2_level5_handler,
 		.ops = &irq_ops,
+		.global_mask = false,
 	},
 };
 
