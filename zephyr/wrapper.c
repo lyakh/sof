@@ -28,6 +28,11 @@
 #error Define CONFIG_DYNAMIC_INTERRUPTS
 #endif
 
+#if PLATFORM_CORE_COUNT > 1 || CONFIG_MP_NUM_CPUS > 1 || \
+	defined(CONFIG_SMP) || defined(CONFIG_MULTICORE)
+#error Multi-core support is yet unavailable for SOF under Zephyr
+#endif
+
 /*
  * Memory - Create Zephyr HEAP for SOF.
  *
