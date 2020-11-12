@@ -193,6 +193,9 @@ if (CONFIG_SOC_SERIES_INTEL_CAVS_V18)
 		${SOF_PLATFORM_PATH}/intel/cavs/lib/dai.c
 		${SOF_PLATFORM_PATH}/intel/cavs/lib/dma.c
 		#${SOF_PLATFORM_PATH}/intel/cavs/lps_pic_restore_vector.S
+	)
+
+	zephyr_library_sources_ifdef(CONFIG_CAVS_LPS
 		${SOF_PLATFORM_PATH}/intel/cavs/lps_wait.c
 	)
 
@@ -249,6 +252,9 @@ if (CONFIG_SOC_SERIES_INTEL_CAVS_V20)
 		${SOF_PLATFORM_PATH}/intel/cavs/lib/dai.c
 		${SOF_PLATFORM_PATH}/intel/cavs/lib/dma.c
 		#${SOF_PLATFORM_PATH}/intel/cavs/lps_pic_restore_vector.S
+	)
+
+	zephyr_library_sources_ifdef(CONFIG_CAVS_LPS
 		${SOF_PLATFORM_PATH}/intel/cavs/lps_wait.c
 	)
 
@@ -307,6 +313,9 @@ if (CONFIG_SOC_SERIES_INTEL_CAVS_V25)
 		${SOF_PLATFORM_PATH}/intel/cavs/lib/dai.c
 		${SOF_PLATFORM_PATH}/intel/cavs/lib/dma.c
 		#${SOF_PLATFORM_PATH}/intel/cavs/lps_pic_restore_vector.S
+	)
+
+	zephyr_library_sources_ifdef(CONFIG_CAVS_LPS
 		${SOF_PLATFORM_PATH}/intel/cavs/lps_wait.c
 	)
 
