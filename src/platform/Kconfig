@@ -215,7 +215,7 @@ endchoice
 
 config MAX_CORE_COUNT
 	int
-	default 1 if KERNEL_BIN_NAME = "zephyr"
+	#default 1 if KERNEL_BIN_NAME = "zephyr"
 	default 2 if APOLLOLAKE
 	default 4 if ICELAKE || CANNONLAKE || SUECREEK || TIGERLAKE
 	default 1
@@ -233,6 +233,7 @@ config CORE_COUNT
 config MULTICORE
 	bool
 	default CORE_COUNT > 1
+	default y
 	help
 	  Indicates that architecture uses multiple cores
 

@@ -73,6 +73,7 @@ static void idc_irq_handler(void *arg)
 	}
 }
 
+#ifndef __ZEPHYR__
 /**
  * \brief Checks IDC registers whether message has been received.
  * \param[in] target_core Id of the core receiving the message.
@@ -152,6 +153,7 @@ int idc_send_msg(struct idc_msg *msg, uint32_t mode)
 
 	return ret;
 }
+#endif
 
 /**
  * \brief Handles received IDC message.

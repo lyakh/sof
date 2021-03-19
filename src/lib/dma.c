@@ -122,7 +122,7 @@ struct dma *dma_get(uint32_t dir, uint32_t cap, uint32_t dev, uint32_t flags)
 	if (!ret)
 		dmin->sref++;
 
-	tr_info(&dma_tr, "dma_get() ID %d sref = %d busy channels %d",
+	tr_dbg(&dma_tr, "dma_get() ID %d sref = %d busy channels %d",
 		dmin->plat_data.id, dmin->sref,
 		atomic_read(&dmin->num_channels_busy));
 

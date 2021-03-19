@@ -88,7 +88,6 @@ if (CONFIG_SOC_SERIES_INTEL_ADSP_BAYTRAIL)
 		${SOF_PLATFORM_PATH}/baytrail/lib/dai.c
 		${SOF_PLATFORM_PATH}/baytrail/lib/clk.c
 		${SOF_PLATFORM_PATH}/baytrail/lib/dma.c
-		${SOF_SRC_PATH}/schedule/dma_multi_chan_domain.c
 	)
 
 	set(PLATFORM "baytrail")
@@ -111,10 +110,6 @@ if (CONFIG_SOC_SERIES_INTEL_CAVS_V15)
 	zephyr_library_sources(
 		${SOF_DRIVERS_PATH}/intel/cavs/ipc.c
 		${SOF_DRIVERS_PATH}/intel/cavs/timestamp.c
-	)
-
-	zephyr_library_sources_ifdef(CONFIG_MULTICORE
-		${SOF_DRIVERS_PATH}/intel/cavs/idc.c
 	)
 
 	zephyr_library_sources_ifdef(CONFIG_INTEL_HDA
@@ -164,10 +159,6 @@ if (CONFIG_SOC_SERIES_INTEL_CAVS_V18)
 	zephyr_library_sources(
 		${SOF_DRIVERS_PATH}/intel/cavs/ipc.c
 		${SOF_DRIVERS_PATH}/intel/cavs/timestamp.c
-	)
-
-	zephyr_library_sources_ifdef(CONFIG_MULTICORE
-		${SOF_DRIVERS_PATH}/intel/cavs/idc.c
 	)
 
 	# Sue Creek - S100 only - already in Zephyr.
@@ -229,10 +220,6 @@ if (CONFIG_SOC_SERIES_INTEL_CAVS_V20)
 		${SOF_DRIVERS_PATH}/intel/cavs/timestamp.c
 	)
 
-	zephyr_library_sources_ifdef(CONFIG_MULTICORE
-		${SOF_DRIVERS_PATH}/intel/cavs/idc.c
-	)
-
 	zephyr_library_sources_ifdef(CONFIG_INTEL_HDA
 		${SOF_DRIVERS_PATH}/intel/hda/hda-dma.c
 		${SOF_DRIVERS_PATH}/intel/hda/hda.c
@@ -288,10 +275,6 @@ if (CONFIG_SOC_SERIES_INTEL_CAVS_V25)
 	zephyr_library_sources(
 		${SOF_DRIVERS_PATH}/intel/cavs/ipc.c
 		${SOF_DRIVERS_PATH}/intel/cavs/timestamp.c
-	)
-
-	zephyr_library_sources_ifdef(CONFIG_MULTICORE
-		${SOF_DRIVERS_PATH}/intel/cavs/idc.c
 	)
 
 	zephyr_library_sources_ifdef(CONFIG_INTEL_HDA
@@ -401,15 +384,20 @@ zephyr_library_sources(
 	${SOF_SRC_PATH}/init/ext_manifest.c
 	${SOF_SRC_PATH}/schedule/timer_domain.c
 	${SOF_SRC_PATH}/schedule/schedule.c
-	${SOF_SRC_PATH}/schedule/dma_single_chan_domain.c
-	${SOF_SRC_PATH}/schedule/dma_multi_chan_domain.c
 	${SOF_SRC_PATH}/schedule/ll_schedule.c
+	${SOF_SRC_PATH}/schedule/zephyr.c
 
 	# Bridge wrapper between SOF and Zephyr APIs - Will shrink over time.
 	wrapper.c
 	edf_schedule.c
 	schedule.c
 )
+
+zephyr_library_sources_ifdef(CONFIG_SCHEDULE_DMA_SINGLE_CHANNEL
+	${SOF_SRC_PATH}/schedule/dma_single_chan_domain.c)
+
+zephyr_library_sources_ifdef(CONFIG_SCHEDULE_DMA_MULTI_CHANNEL
+	${SOF_SRC_PATH}/schedule/dma_multi_chan_domain.c)
 
 zephyr_library_sources_ifdef(CONFIG_TRACE
 	${SOF_SRC_PATH}/trace/dma-trace.c

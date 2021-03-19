@@ -45,7 +45,7 @@ DECLARE_SOF_UUID("sa", sa_uuid, 0x5276b491, 0x5b64, 0x464e,
 DECLARE_TR_CTX(sa_tr, SOF_UUID(sa_uuid), LOG_LEVEL_INFO);
 
 #define perf_sa_trace(pcd, sa)					\
-	tr_info(&sa_tr, "perf sys_load peak plat %u cpu %u",	\
+	tr_dbg(&sa_tr, "perf sys_load peak plat %u cpu %u",	\
 		(uint32_t)((pcd)->plat_delta_peak),		\
 		(uint32_t)((pcd)->cpu_delta_peak))
 
@@ -94,7 +94,7 @@ void sa_init(struct sof *sof, uint64_t timeout)
 	if (timeout > UINT_MAX)
 		tr_warn(&sa_tr, "sa_init(), timeout > %u", UINT_MAX);
 	else
-		tr_info(&sa_tr, "sa_init(), timeout = %u", (unsigned int)timeout);
+		tr_dbg(&sa_tr, "sa_init(), timeout = %u", (unsigned int)timeout);
 
 	sof->sa = rzalloc(SOF_MEM_ZONE_SYS_SHARED, 0, SOF_MEM_CAPS_RAM, sizeof(*sof->sa));
 
@@ -117,7 +117,7 @@ void sa_init(struct sof *sof, uint64_t timeout)
 		tr_info(&sa_tr,
 			"sa_init(), some of the values are > %u", UINT_MAX);
 	else
-		tr_info(&sa_tr,
+		tr_dbg(&sa_tr,
 			"sa_init(), ticks = %u, sof->sa->warn_timeout = %u, sof->sa->panic_timeout = %u",
 			(unsigned int)ticks, (unsigned int)sof->sa->warn_timeout,
 			(unsigned int)sof->sa->panic_timeout);

@@ -332,6 +332,7 @@ static void platform_init_hw(void)
 }
 #endif
 
+/* Runs on the main core */
 int platform_init(struct sof *sof)
 {
 #if CONFIG_DW_SPI

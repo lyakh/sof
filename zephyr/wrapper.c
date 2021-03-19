@@ -6,6 +6,7 @@
  */
 
 #include <sof/lib/alloc.h>
+#include <sof/drivers/idc.h>
 #include <sof/drivers/interrupt.h>
 #include <sof/drivers/interrupt-map.h>
 #include <sof/lib/dma.h>
@@ -22,6 +23,11 @@
 #include <device.h>
 #include <soc.h>
 #include <kernel.h>
+
+extern K_KERNEL_STACK_ARRAY_DEFINE(z_interrupt_stacks, CONFIG_MP_NUM_CPUS,
+				   CONFIG_ISR_STACK_SIZE);
+
+LOG_MODULE_DECLARE(sof, SOF_ZEPHYR_TRACE_LEVEL);
 
 /* Confirm Zephyr config settings - TODO: Use ASSERT */
 #if !CONFIG_DYNAMIC_INTERRUPTS
@@ -311,19 +317,16 @@ uint64_t platform_timer_get_atomic(struct timer *timer)
 /*
  * Notifier.
  *
- * Use SOF inter component messaging today. Zephy has similar APIs that will
+ * Use SOF inter component messaging today. Zephyr has similar APIs that will
  * need some minor feature updates prior to merge. i.e. FW to host messages.
  * TODO: align with Zephyr API when ready.
  */
 
-static struct notify *host_notify;
+static struct notify *host_notify[CONFIG_CORE_COUNT];
 
 struct notify **arch_notify_get(void)
 {
-	if (!host_notify)
-		host_notify = rzalloc(SOF_MEM_ZONE_SYS, 0, SOF_MEM_CAPS_RAM,
-				      sizeof(*host_notify));
-	return &host_notify;
+	return host_notify + cpu_get_id();
 }
 
 /*
@@ -509,10 +512,28 @@ void platform_dai_wallclock(struct comp_dev *dai, uint64_t *wallclock)
  * Mostly empty today waiting pending Zephyr CAVS SMP integration.
  */
 #if CONFIG_MULTICORE
+static atomic_t start_flag;
+void smp_init_top(void *arg);
+
+void smp_init_middle(void *arg);
+
+static void secondary_init(void *arg)
+{
+	smp_init_middle(arg);
+	secondary_core_init(sof_get());
+	smp_init_top(arg);
+}
+
 int arch_cpu_enable_core(int id)
 {
-	/* TODO: call Zephyr API */
-	return 0;
+	(void)atomic_clear(&start_flag);
+
+	int ret = arch_start_cpu(id, z_interrupt_stacks[id], CONFIG_ISR_STACK_SIZE,
+				 secondary_init, &start_flag);
+
+	(void)atomic_set(&start_flag, 1);
+
+	return ret;
 }
 
 void arch_cpu_disable_core(int id)
@@ -523,7 +544,8 @@ void arch_cpu_disable_core(int id)
 int arch_cpu_is_core_enabled(int id)
 {
 	/* TODO: call Zephyr API */
-	return 1;
+	return mailbox_sw_reg_read(PLATFORM_TRACEP_SECONDARY_CORE(id)) ==
+		TRACE_BOOT_PLATFORM;
 }
 
 void cpu_power_down_core(void)
@@ -534,27 +556,18 @@ void cpu_power_down_core(void)
 int arch_cpu_enabled_cores(void)
 {
 	/* TODO: use zephyr version to get number of running cores */
-	return 1;
+	return CONFIG_MP_NUM_CPUS;
 }
 
-struct idc;
+static struct idc idc[CONFIG_MP_NUM_CPUS];
+static struct idc *p_idc[CONFIG_MP_NUM_CPUS];
+
 struct idc **idc_get(void)
 {
-	/* TODO: this should return per core data */
-	return NULL;
+	int cpu = cpu_get_id();
+
+	p_idc[cpu] = idc + cpu;
+
+	return p_idc + cpu;
 }
-#endif
-
-#if CONFIG_LIBRARY
-/* Dummies for unsupported architectures */
-
-/* Platform */
-int platform_boot_complete(uint32_t boot_message)
-{
-	return 0;
-}
-
-/* Logging */
-const struct log_source_const_data log_const_sof;
-
 #endif

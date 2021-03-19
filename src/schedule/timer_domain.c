@@ -172,7 +172,7 @@ static int timer_domain_register(struct ll_schedule_domain *domain,
 	ret = timer_register(timer_domain->timer, handler, arg);
 #endif
 
-	tr_info(&ll_tr, "timer_domain_register domain->type %d domain->clk %d domain->ticks_per_ms %d period %d",
+	tr_dbg(&ll_tr, "timer_domain_register domain->type %d domain->clk %d domain->ticks_per_ms %d period %d",
 		domain->type, domain->clk, domain->ticks_per_ms, (uint32_t)period);
 out:
 	platform_shared_commit(timer_domain, sizeof(*timer_domain));

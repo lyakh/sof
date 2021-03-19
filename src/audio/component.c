@@ -126,7 +126,7 @@ struct comp_dev *comp_new(struct sof_ipc_comp *comp)
 		return NULL;
 	}
 
-	tr_info(&comp_tr, "comp new %pU type %d id %d.%d",
+	tr_dbg(&comp_tr, "comp new %pU type %d id %d.%d",
 		drv->tctx->uuid_p, comp->type, comp->pipeline_id, comp->id);
 
 	/* create the new component */

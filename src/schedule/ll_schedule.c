@@ -48,10 +48,10 @@ struct ll_schedule_data {
 	struct ll_schedule_domain *domain;	/* scheduling domain */
 };
 
-const struct scheduler_ops schedule_ll_ops;
+static const struct scheduler_ops schedule_ll_ops;
 
 #define perf_ll_sched_trace(pcd, ll_sched)			\
-	tr_info(&ll_tr, "perf ll_work peak plat %u cpu %u",	\
+	tr_dbg(&ll_tr, "perf ll_work peak plat %u cpu %u",	\
 		(uint32_t)((pcd)->plat_delta_peak),		\
 		(uint32_t)((pcd)->cpu_delta_peak))
 
@@ -342,13 +342,13 @@ static int schedule_ll_task(void *data, struct task *task, uint64_t start,
 
 	pdata = ll_sch_get_pdata(task);
 
-	tr_info(&ll_tr, "task add %p %pU", task, task->uid);
+	tr_dbg(&ll_tr, "task add %p %pU", task, task->uid);
 	if (start <= UINT_MAX && period <= UINT_MAX)
-		tr_info(&ll_tr, "task params pri %d flags %d start %u period %u",
+		tr_dbg(&ll_tr, "task params pri %d flags %d start %u period %u",
 			task->priority, task->flags,
 			(unsigned int)start, (unsigned int)period);
 	else
-		tr_info(&ll_tr, "task params pri %d flags %d start or period > %u",
+		tr_dbg(&ll_tr, "task params pri %d flags %d start or period > %u",
 			task->priority, task->flags, UINT_MAX);
 
 	pdata->period = period;
@@ -526,6 +526,10 @@ static void ll_scheduler_recalculate_tasks(struct ll_schedule_data *sch,
 
 		task->start = delta_ms ?
 			current + sch->domain->ticks_per_ms * delta_ms :
+			/*
+			 * This adds 125us which seems to be some arbitrary
+			 * minimum delay to guarantee not to miss the task?
+			 */
 			current + (sch->domain->ticks_per_ms >> 3);
 	}
 }
@@ -570,7 +574,7 @@ int scheduler_init_ll(struct ll_schedule_domain *domain)
 	return 0;
 }
 
-const struct scheduler_ops schedule_ll_ops = {
+static const struct scheduler_ops schedule_ll_ops = {
 	.schedule_task		= schedule_ll_task,
 	.schedule_task_free	= schedule_ll_task_free,
 	.schedule_task_cancel	= schedule_ll_task_cancel,

@@ -73,7 +73,7 @@ struct pipeline *pipeline_new(struct sof_ipc_pipe_new *pipe_desc,
 	struct pipeline *p;
 	int ret;
 
-	pipe_cl_info("pipeline new pipe_id %d period %d priority %d",
+	pipe_cl_dbg("pipeline new pipe_id %d period %d priority %d",
 		     pipe_desc->pipeline_id, pipe_desc->period,
 		     pipe_desc->priority);
 
@@ -122,9 +122,9 @@ int pipeline_connect(struct comp_dev *comp, struct comp_buffer *buffer,
 	uint32_t flags;
 
 	if (dir == PPL_CONN_DIR_COMP_TO_BUFFER)
-		comp_info(comp, "connect buffer %d as sink", buffer->id);
+		comp_dbg(comp, "connect buffer %d as sink", buffer->id);
 	else
-		comp_info(comp, "connect buffer %d as source", buffer->id);
+		comp_dbg(comp, "connect buffer %d as source", buffer->id);
 
 	irq_local_disable(flags);
 	list_item_prepend(buffer_comp_list(buffer, dir),

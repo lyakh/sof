@@ -91,10 +91,12 @@ int secondary_core_init(struct sof *sof)
 	platform_interrupt_init();
 #endif
 
+#ifndef __ZEPHYR__
 	trace_point(TRACE_BOOT_PLATFORM_SCHED);
 	scheduler_init_edf();
 	scheduler_init_ll(timer_domain_get());
 	scheduler_init_ll(dma_domain_get());
+#endif
 
 	/* initialize IDC mechanism */
 	trace_point(TRACE_BOOT_PLATFORM_IDC);
@@ -123,8 +125,6 @@ static int secondary_core_init(struct sof *sof)
 
 int primary_core_init(int argc, char *argv[], struct sof *sof)
 {
-	int err;
-
 	/* setup context */
 	sof->argc = argc;
 	sof->argv = argv;
@@ -156,8 +156,7 @@ int primary_core_init(int argc, char *argv[], struct sof *sof)
 	pm_runtime_init(sof);
 
 	/* init the platform */
-	err = platform_init(sof);
-	if (err < 0)
+	if (platform_init(sof) < 0)
 		panic(SOF_IPC_PANIC_PLATFORM);
 
 	trace_point(TRACE_BOOT_PLATFORM);
@@ -166,17 +165,12 @@ int primary_core_init(int argc, char *argv[], struct sof *sof)
 	lp_sram_unpack();
 #endif
 
-	/* should not return */
-	err = task_main_start(sof);
-
-	return err;
+	/* should not return, except with Zephyr */
+	return task_main_start(sof);
 }
 
-#ifdef __ZEPHYR__
-int sof_main(int argc, char *argv[])
-#else
+#ifndef __ZEPHYR__
 int main(int argc, char *argv[])
-#endif
 {
 	int err;
 
@@ -187,9 +181,17 @@ int main(int argc, char *argv[])
 	else
 		err = secondary_core_init(&sof);
 
-#ifndef __ZEPHYR__
 	/* should never get here */
 	panic(SOF_IPC_PANIC_TASK);
-#endif
 	return err;
 }
+
+#else
+
+int sof_main(int argc, char *argv[])
+{
+	trace_point(TRACE_BOOT_START);
+
+	return primary_core_init(argc, argv, &sof);
+}
+#endif

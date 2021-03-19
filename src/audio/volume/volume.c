@@ -374,7 +374,7 @@ static struct comp_dev *volume_new(const struct comp_driver *drv,
 	cd->vol_ramp_active = false;
 	cd->channels = 0; /* To be set in prepare() */
 
-	comp_info(dev, "vol->initial_ramp = %d, vol->ramp = %d, vol->min_value = %d, vol->max_value = %d",
+	comp_dbg(dev, "vol->initial_ramp = %d, vol->ramp = %d, vol->min_value = %d, vol->max_value = %d",
 		  vol->initial_ramp, vol->ramp,
 		  vol->min_value, vol->max_value);
 
@@ -557,7 +557,7 @@ static int volume_ctrl_set_cmd(struct comp_dev *dev,
 		for (j = 0; j < cdata->num_elems; j++) {
 			ch = cdata->chanv[j].channel;
 			val = cdata->chanv[j].value;
-			comp_info(dev, "volume_ctrl_set_cmd(), channel = %d, value = %u",
+			comp_dbg(dev, "volume_ctrl_set_cmd(), channel = %d, value = %u",
 				  ch, val);
 			if (ch < 0 || ch >= SOF_IPC_MAX_CHANNELS) {
 				comp_err(dev, "volume_ctrl_set_cmd(), illegal channel = %d",
@@ -586,7 +586,7 @@ static int volume_ctrl_set_cmd(struct comp_dev *dev,
 		for (j = 0; j < cdata->num_elems; j++) {
 			ch = cdata->chanv[j].channel;
 			val = cdata->chanv[j].value;
-			comp_info(dev, "volume_ctrl_set_cmd(), channel = %d, value = %u",
+			comp_dbg(dev, "volume_ctrl_set_cmd(), channel = %d, value = %u",
 				  ch, val);
 			if (ch < 0 || ch >= SOF_IPC_MAX_CHANNELS) {
 				comp_err(dev, "volume_ctrl_set_cmd(), illegal channel = %d",
@@ -638,7 +638,7 @@ static int volume_ctrl_get_cmd(struct comp_dev *dev,
 		for (j = 0; j < cdata->num_elems; j++) {
 			cdata->chanv[j].channel = j;
 			cdata->chanv[j].value = cd->tvolume[j];
-			comp_info(dev, "volume_ctrl_get_cmd(), channel = %u, value = %u",
+			comp_dbg(dev, "volume_ctrl_get_cmd(), channel = %u, value = %u",
 				  cdata->chanv[j].channel,
 				  cdata->chanv[j].value);
 		}
@@ -647,7 +647,7 @@ static int volume_ctrl_get_cmd(struct comp_dev *dev,
 		for (j = 0; j < cdata->num_elems; j++) {
 			cdata->chanv[j].channel = j;
 			cdata->chanv[j].value = !cd->muted[j];
-			comp_info(dev, "volume_ctrl_get_cmd(), channel = %u, value = %u",
+			comp_dbg(dev, "volume_ctrl_get_cmd(), channel = %u, value = %u",
 				  cdata->chanv[j].channel,
 				  cdata->chanv[j].value);
 		}

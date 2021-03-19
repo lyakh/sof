@@ -570,7 +570,7 @@ struct ll_schedule_domain *dma_single_chan_domain_init(struct dma *dma_array,
 	struct ll_schedule_domain *domain;
 	struct dma_domain *dma_domain;
 
-	tr_info(&ll_tr, "dma_single_chan_domain_init(): num_dma %d, clk %d",
+	tr_dbg(&ll_tr, "dma_single_chan_domain_init(): num_dma %d, clk %d",
 		num_dma, clk);
 
 	domain = domain_init(SOF_SCHEDULE_LL_DMA, clk, false,
