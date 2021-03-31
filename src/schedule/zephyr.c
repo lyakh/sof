@@ -67,8 +67,6 @@ static void idc_handler(struct k_p4wq_work *work)
 	idc->received_msg.header = msg->header;
 	idc->received_msg.extension = msg->extension;
 
-	rfree(msg);
-
 	switch (msg->header) {
 	case IDC_MSG_POWER_UP:
 		/* Run the core initialisation? */
@@ -77,6 +75,8 @@ static void idc_handler(struct k_p4wq_work *work)
 	default:
 		idc_cmd(&idc->received_msg);
 	}
+
+	rfree(msg);
 }
 
 /*
@@ -113,7 +113,7 @@ int idc_send_msg(struct idc_msg *msg, uint32_t mode)
 	}
 
 	/* Temporarily store sender core ID */
-	msg->core = cpu_get_id();
+	msg_cp->core = cpu_get_id();
 
 	SOC_DCACHE_FLUSH(msg_cp, sizeof(*msg_cp));
 	k_p4wq_submit(q_zephyr_idc + target_cpu, work);

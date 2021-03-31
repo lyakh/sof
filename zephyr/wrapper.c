@@ -5,6 +5,7 @@
  * Author: Liam Girdwood <liam.r.girdwood@linux.intel.com>
  */
 
+#include <sof/init.h>
 #include <sof/lib/alloc.h>
 #include <sof/drivers/idc.h>
 #include <sof/drivers/interrupt.h>
@@ -517,23 +518,25 @@ void smp_init_top(void *arg);
 
 void smp_init_middle(void *arg);
 
-static void secondary_init(void *arg)
+static FUNC_NORETURN void secondary_init(void *arg)
 {
 	smp_init_middle(arg);
 	secondary_core_init(sof_get());
 	smp_init_top(arg);
+
+	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */
 }
 
 int arch_cpu_enable_core(int id)
 {
-	(void)atomic_clear(&start_flag);
+	atomic_clear(&start_flag);
 
-	int ret = arch_start_cpu(id, z_interrupt_stacks[id], CONFIG_ISR_STACK_SIZE,
+	arch_start_cpu(id, z_interrupt_stacks[id], CONFIG_ISR_STACK_SIZE,
 				 secondary_init, &start_flag);
 
-	(void)atomic_set(&start_flag, 1);
+	atomic_set(&start_flag, 1);
 
-	return ret;
+	return 0;
 }
 
 void arch_cpu_disable_core(int id)
@@ -543,9 +546,7 @@ void arch_cpu_disable_core(int id)
 
 int arch_cpu_is_core_enabled(int id)
 {
-	/* TODO: call Zephyr API */
-	return mailbox_sw_reg_read(PLATFORM_TRACEP_SECONDARY_CORE(id)) ==
-		TRACE_BOOT_PLATFORM;
+	return arch_cpu_is_powered_up(id);
 }
 
 void cpu_power_down_core(void)

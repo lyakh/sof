@@ -154,6 +154,7 @@ void platform_dai_wallclock(struct comp_dev *dai, uint64_t *wallclock)
 	*wallclock = shim_read64(SHIM_DSPWC);
 }
 
+#ifndef __ZEPHYR__
 static int platform_timer_register(struct timer *timer,
 				   void (*handler)(void *arg), void *arg)
 {
@@ -262,3 +263,4 @@ void timer_disable(struct timer *timer, void *arg, int core)
 
 	platform_shared_commit(timer, sizeof(*timer));
 }
+#endif

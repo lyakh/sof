@@ -99,7 +99,14 @@ int scheduler_init_edf(void)
 		       edf_workq_stack,
 		       K_THREAD_STACK_SIZEOF(edf_workq_stack),
 		       1);
+
+	k_thread_suspend(&edf_workq.thread);
+
+	k_thread_cpu_mask_clear(&edf_workq.thread);
+	k_thread_cpu_mask_enable(&edf_workq.thread, PLATFORM_PRIMARY_CORE_ID);
 	k_thread_name_set(&edf_workq.thread, "edf_workq");
+
+	k_thread_resume(&edf_workq.thread);
 
 	return 0;
 }
