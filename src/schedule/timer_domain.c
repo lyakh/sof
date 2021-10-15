@@ -64,6 +64,8 @@ static int timer_domain_register(struct ll_schedule_domain *domain,
 	return timer_register(timer_domain->timer, handler, arg);
 }
 
+bool core1_unregistered;
+
 static int timer_domain_unregister(struct ll_schedule_domain *domain,
 				   struct task *task, uint32_t num_tasks)
 {
@@ -73,6 +75,9 @@ static int timer_domain_unregister(struct ll_schedule_domain *domain,
 	 * itself. Keep the interrupt registered but disabled. This assumes that
 	 * the handler is at least not unloaded.
 	 */
+
+	if (cpu_is_secondary(cpu_get_id()))
+		core1_unregistered = true;
 
 	return 0;
 }

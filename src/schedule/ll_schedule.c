@@ -185,12 +185,17 @@ static void schedule_ll_client_reschedule(struct ll_schedule_data *sch)
 
 }
 
+extern bool core1_unregistered;
+
 static void schedule_ll_tasks_run(void *data)
 {
 	struct ll_schedule_data *sch = data;
 	struct ll_schedule_domain *domain = sch->domain;
 	uint32_t flags;
 	uint32_t core = cpu_get_id();
+
+	if (core1_unregistered && cpu_is_secondary(core))
+		tr_info(&ll_tr, "timer interrupt after unregister");
 
 	tr_dbg(&ll_tr, "timer interrupt on core %d, at %u, previous next_tick %u",
 	       core,
@@ -636,6 +641,7 @@ int scheduler_init_ll(struct ll_schedule_domain *domain)
 
 	scheduler_init(domain->type, &schedule_ll_ops, sch);
 
+	tr_info(&ll_tr, "scheduler_init_ll()");
 
 	return 0;
 }

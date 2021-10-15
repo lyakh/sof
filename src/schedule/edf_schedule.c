@@ -100,6 +100,8 @@ static void edf_scheduler_run(void *data)
 	schedule_edf_task_running(data, task_next);
 }
 
+extern bool core1_unregistered;
+
 static int schedule_edf_task(void *data, struct task *task, uint64_t start,
 			     uint64_t period)
 {
@@ -107,6 +109,9 @@ static int schedule_edf_task(void *data, struct task *task, uint64_t start,
 	uint32_t flags;
 	(void) period; /* not used */
 	(void) start; /* not used */
+
+	if (cpu_is_secondary(cpu_get_id()) && core1_unregistered)
+		tr_info(&edf_tr, "schedule_edf_task()");
 
 	irq_local_disable(flags);
 
@@ -257,7 +262,7 @@ int scheduler_init_edf(void)
 {
 	struct edf_schedule_data *edf_sch;
 
-	tr_info(&edf_tr, "edf_scheduler_init()");
+	tr_info(&edf_tr, "scheduler_init_edf()");
 
 	edf_sch = rzalloc(SOF_MEM_ZONE_SYS, 0, SOF_MEM_CAPS_RAM,
 			  sizeof(*edf_sch));

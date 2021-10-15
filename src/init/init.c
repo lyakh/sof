@@ -105,7 +105,7 @@ int secondary_core_init(struct sof *sof)
 	trace_point(TRACE_BOOT_PLATFORM);
 
 #ifndef __ZEPHYR__
-	/* task initialized in edf_scheduler_init */
+	/* task initialized in scheduler_init_edf */
 	schedule_task(*task_main_get(), 0, UINT64_MAX);
 #endif
 
