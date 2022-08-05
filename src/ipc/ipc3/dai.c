@@ -139,6 +139,7 @@ int ipc_dai_data_config(struct comp_dev *dev)
 		 * all formats, such as 8/16/24/32 bits.
 		 */
 		dev->ipc_config.frame_fmt = SOF_IPC_FRAME_S32_LE;
+		comp_info(dev, "DMA buffer %p", dd->dma_buffer);
 		dd->dma_buffer->stream.frame_fmt = dev->ipc_config.frame_fmt;
 		dd->config.burst_elems = dai_get_fifo_depth(dd->dai, dai->direction);
 		/* As with HDA, the DMA channel is assigned in runtime,
