@@ -1528,4 +1528,21 @@ UT_STATIC void sys_comp_probe_init(void)
 
 DECLARE_MODULE(sys_comp_probe_init);
 SOF_MODULE_INIT(probe, sys_comp_probe_init);
+
+#if CONFIG_PROBE_MODULE
+/* modular: llext dynamic link */
+
+#include <module/module/api_ver.h>
+#include <module/module/llext.h>
+#include <rimage/sof/user/manifest.h>
+
+#define UUID_PROBE 0x08, 0x08, 0xAD, 0x7C, 0x10, 0xAB, 0x23, 0xCD, 0x45, 0xEF, \
+		0x12, 0xAB, 0x34, 0xCD, 0x56, 0xEF
+
+static const struct sof_man_module_manifest mod_manifest __section(".module") __used =
+	SOF_LLEXT_AUX_MANIFEST("PROBE", NULL, UUID_PROBE);
+
+SOF_LLEXT_BUILDINFO;
+
+#endif
 #endif
