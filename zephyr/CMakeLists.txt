@@ -798,12 +798,18 @@ zephyr_library_sources_ifdef(CONFIG_MAXIM_DSM_STUB
 	${SOF_AUDIO_PATH}/smart_amp/maxim_dsm_stub.c
 )
 
-zephyr_library_sources_ifdef(CONFIG_COMP_ARIA
-	${SOF_AUDIO_PATH}/aria/aria.c
-	${SOF_AUDIO_PATH}/aria/aria_hifi5.c
-	${SOF_AUDIO_PATH}/aria/aria_hifi3.c
-	${SOF_AUDIO_PATH}/aria/aria_generic.c
-)
+if(CONFIG_COMP_ARIA STREQUAL "m")
+	add_subdirectory(${SOF_AUDIO_PATH}/aria/llext
+			 ${PROJECT_BINARY_DIR}/aria_llext)
+	add_dependencies(app aria)
+elseif(CONFIG_COMP_ARIA)
+	zephyr_library_sources(
+		${SOF_AUDIO_PATH}/aria/aria.c
+		${SOF_AUDIO_PATH}/aria/aria_hifi5.c
+		${SOF_AUDIO_PATH}/aria/aria_hifi3.c
+		${SOF_AUDIO_PATH}/aria/aria_generic.c
+	)
+endif()
 
 zephyr_library_sources_ifdef(CONFIG_COMP_CROSSOVER
 	${SOF_AUDIO_PATH}/crossover/crossover.c
