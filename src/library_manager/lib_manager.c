@@ -911,9 +911,9 @@ static int lib_manager_store_library(struct lib_manager_dma_ext *dma_ext,
 	return 0;
 }
 
-static int lib_manager_setup(uint32_t dma_id)
+int lib_manager_setup(uint32_t dma_id)
 {
-	struct ext_library *_ext_lib = ext_lib_get();
+	struct ext_library *_ext_lib;
 	struct lib_manager_dma_ext *dma_ext;
 	struct dma_block_config dma_block_cfg = {
 		.block_size = MAN_MAX_SIZE_V1_8,
@@ -928,6 +928,9 @@ static int lib_manager_setup(uint32_t dma_id)
 	};
 	int ret;
 
+	lib_manager_init();
+
+	_ext_lib = ext_lib_get();
 	if (_ext_lib->runtime_data)
 		return 0;
 
@@ -996,18 +999,12 @@ int lib_manager_load_library(uint32_t dma_id, uint32_t lib_id, uint32_t type)
 		return -EINVAL;
 	}
 
-	lib_manager_init();
+	/* Returns success if already set up */
+	ret = lib_manager_setup(dma_id);
+	if (ret)
+		return ret;
 
 	_ext_lib = ext_lib_get();
-
-	if (type == SOF_IPC4_GLB_LOAD_LIBRARY_PREPARE || !_ext_lib->runtime_data) {
-		ret = lib_manager_setup(dma_id);
-		if (ret)
-			return ret;
-
-		if (type == SOF_IPC4_GLB_LOAD_LIBRARY_PREPARE)
-			return 0;
-	}
 
 	dma_ext = _ext_lib->runtime_data;
 

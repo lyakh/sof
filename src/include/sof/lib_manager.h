@@ -199,6 +199,7 @@ uintptr_t lib_manager_allocate_module(const struct comp_ipc_config *ipc_config,
  * Function is responsible to free module resources in HP memory.
  */
 int lib_manager_free_module(const uint32_t component_id);
+
 /*
  * \brief Load library
  *
@@ -212,6 +213,13 @@ int lib_manager_free_module(const uint32_t component_id);
  * destination memory region.
  */
 int lib_manager_load_library(uint32_t dma_id, uint32_t lib_id, uint32_t type);
+
+/*
+ * \brief Setup library
+ *
+ * param[in] dma_id - channel used to transfer binary from host
+ */
+int lib_manager_setup(uint32_t dma_id);
 
 /*
  * \brief Initialize message

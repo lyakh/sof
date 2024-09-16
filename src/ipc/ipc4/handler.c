@@ -701,6 +701,20 @@ static int ipc4_load_library(struct ipc4_message_request *ipc4)
 
 	return IPC4_SUCCESS;
 }
+
+static int ipc4_prepare_library(struct ipc4_message_request *ipc4)
+{
+	struct ipc4_module_load_library library;
+	int ret;
+
+	library.header.dat = ipc4->primary.dat;
+
+	ret = lib_manager_setup(library.header.r.dma_id);
+	if (ret != 0)
+		return (ret == -EINVAL) ? IPC4_ERROR_INVALID_PARAM : IPC4_FAILURE;
+
+	return IPC4_SUCCESS;
+}
 #endif
 
 static int ipc4_process_chain_dma(struct ipc4_message_request *ipc4)
@@ -843,7 +857,7 @@ static int ipc4_process_glb_message(struct ipc4_message_request *ipc4)
 		ret = ipc4_load_library(ipc4);
 		break;
 	case SOF_IPC4_GLB_LOAD_LIBRARY_PREPARE:
-		ret = ipc4_load_library(ipc4);
+		ret = ipc4_prepare_library(ipc4);
 		break;
 #endif
 	case SOF_IPC4_GLB_INTERNAL_MESSAGE:
