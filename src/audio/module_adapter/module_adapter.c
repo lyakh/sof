@@ -229,6 +229,13 @@ struct comp_dev *module_adapter_new_ext(const struct comp_driver *drv,
 
 	dev->mod = mod;
 
+#if CONFIG_ZEPHYR_DP_SCHEDULER
+	/* create a task for DP processing */
+	if (config->proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		/* All data allocated, create a thread */
+		pipeline_comp_dp_task_init(dev);
+#endif /* CONFIG_ZEPHYR_DP_SCHEDULER */
+
 	list_init(&mod->raw_data_buffers_list);
 
 	ret = module_adapter_init_data(dev, dst, config, spec);
@@ -276,12 +283,6 @@ struct comp_dev *module_adapter_new_ext(const struct comp_driver *drv,
 		goto err;
 	}
 
-#if CONFIG_ZEPHYR_DP_SCHEDULER
-	/* create a task for DP processing */
-	if (config->proc_domain == COMP_PROCESSING_DOMAIN_DP)
-		pipeline_comp_dp_task_init(dev);
-#endif /* CONFIG_ZEPHYR_DP_SCHEDULER */
-
 	module_adapter_reset_data(dst);
 
 	dev->state = COMP_STATE_READY;
@@ -307,6 +308,10 @@ struct comp_dev *module_adapter_new_ext(const struct comp_driver *drv,
 	return dev;
 
 err:
+#if CONFIG_ZEPHYR_DP_SCHEDULER
+	if (dev->task)
+		schedule_task_free(dev->task);
+#endif
 	module_adapter_mem_free(mod);
 
 	return NULL;
