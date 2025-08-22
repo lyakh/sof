@@ -665,11 +665,9 @@ int module_adapter_params(struct comp_dev *dev, struct sof_ipc_stream_params *pa
 #endif
 
 	/* allocate stream_params each time */
-	if (mod->stream_params)
-		rfree(mod->stream_params);
+	mod_free(mod, mod->stream_params);
 
-	mod->stream_params = rzalloc(SOF_MEM_FLAG_USER,
-				     sizeof(*mod->stream_params) + params->ext_data_length);
+	mod->stream_params = mod_alloc(mod, sizeof(*mod->stream_params) + params->ext_data_length);
 	if (!mod->stream_params)
 		return -ENOMEM;
 
@@ -1371,7 +1369,7 @@ int module_adapter_reset(struct comp_dev *dev)
 		buffer_zero(buffer);
 	}
 
-	rfree(mod->stream_params);
+	mod_free(mod, mod->stream_params);
 	mod->stream_params = NULL;
 
 	comp_dbg(dev, "done");
@@ -1405,7 +1403,6 @@ void module_adapter_free(struct comp_dev *dev)
 
 	mod_free_all(mod);
 
-	rfree(mod->stream_params);
 	module_adapter_mem_free(mod);
 }
 EXPORT_SYMBOL(module_adapter_free);
