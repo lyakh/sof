@@ -574,6 +574,7 @@ int module_adapter_params(struct comp_dev *dev, struct sof_ipc_stream_params *pa
 {
 	int ret;
 	struct processing_module *mod = comp_mod(dev);
+	struct k_heap *mod_heap = mod->priv.resources.heap;
 
 	module_adapter_set_params(mod, params);
 
@@ -584,11 +585,11 @@ int module_adapter_params(struct comp_dev *dev, struct sof_ipc_stream_params *pa
 	}
 
 	/* allocate stream_params each time */
-	if (mod->stream_params)
-		rfree(mod->stream_params);
+	sof_heap_free(mod_heap, mod->stream_params);
 
-	mod->stream_params = rzalloc(SOF_MEM_FLAG_USER,
-				     sizeof(*mod->stream_params) + params->ext_data_length);
+	mod->stream_params = sof_heap_alloc(mod_heap, 0,
+					    sizeof(*mod->stream_params) + params->ext_data_length,
+					    0);
 	if (!mod->stream_params)
 		return -ENOMEM;
 
@@ -1275,6 +1276,7 @@ int module_adapter_reset(struct comp_dev *dev)
 {
 	int ret, i;
 	struct processing_module *mod = comp_mod(dev);
+	struct k_heap *mod_heap = mod->priv.resources.heap;
 	struct list_item *blist;
 
 	comp_dbg(dev, "resetting");
@@ -1310,7 +1312,7 @@ int module_adapter_reset(struct comp_dev *dev)
 		buffer_zero(buffer);
 	}
 
-	rfree(mod->stream_params);
+	sof_heap_free(mod_heap, mod->stream_params);
 	mod->stream_params = NULL;
 
 	comp_dbg(dev, "done");
@@ -1356,11 +1358,10 @@ void module_adapter_free(struct comp_dev *dev)
 	rfree(mod->priv.cfg.input_pins);
 #endif
 
-	rfree(mod->stream_params);
-
 	struct k_heap *mod_heap = mod->priv.resources.heap;
 	void *mem = mod->priv.resources.heap_mem;
 
+	sof_heap_free(mod_heap, mod->stream_params);
 	sof_heap_free(mod_heap, mod);
 	sof_heap_free(mod_heap, dev);
 	rfree(mem);
