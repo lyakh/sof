@@ -13,6 +13,10 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys_clock.h>
 
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_DECLARE(zephyr, CONFIG_SOF_LOG_LEVEL);
+
 static struct k_work_q edf_workq;
 static K_THREAD_STACK_DEFINE(edf_workq_stack, CONFIG_STACK_SIZE_EDF);
 
@@ -98,6 +102,7 @@ static struct scheduler_ops schedule_edf_ops = {
 	.schedule_task_free	= schedule_edf_task_free,
 };
 
+struct k_heap *sof_sys_heap_get(void);
 int scheduler_init_edf(void)
 {
 	struct k_thread *thread = &edf_workq.thread;
@@ -111,6 +116,8 @@ int scheduler_init_edf(void)
 
 	k_thread_suspend(thread);
 
+	k_thread_heap_assign(thread, sof_sys_heap_get());
+	LOG_INF("thread %p heap %p", thread, thread->resource_pool);
 	k_thread_cpu_mask_clear(thread);
 	k_thread_cpu_mask_enable(thread, PLATFORM_PRIMARY_CORE_ID);
 	k_thread_name_set(thread, "edf_workq");

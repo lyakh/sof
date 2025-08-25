@@ -134,6 +134,7 @@ struct module_resources {
 	size_t heap_high_water_mark;
 	struct k_heap *heap;
 	void *heap_mem;
+	size_t heap_size;
 #if CONFIG_MODULE_MEMORY_API_DEBUG && defined(__ZEPHYR__)
 	k_tid_t rsrc_mngr;
 #endif
@@ -179,10 +180,13 @@ struct module_processing_data {
 /*****************************************************************************/
 int module_load_config(struct comp_dev *dev, const void *cfg, size_t size);
 int module_init(struct processing_module *mod);
-void *mod_alloc_align(struct processing_module *mod, uint32_t size, uint32_t alignment);
-void *mod_alloc(struct processing_module *mod, uint32_t size);
-void *mod_zalloc(struct processing_module *mod, uint32_t size);
+void mod_resource_init(struct processing_module *mod);
+void *mod_alloc_ext(struct processing_module *mod, uint32_t flags, size_t size, size_t alignment);
+void *mod_alloc_align(struct processing_module *mod, size_t size, size_t alignment);
+void *mod_alloc(struct processing_module *mod, size_t size);
+void *mod_zalloc(struct processing_module *mod, size_t size);
 int mod_free(struct processing_module *mod, const void *ptr);
+void mod_heap_info(struct processing_module *mod, uint32_t *size, uintptr_t *start);
 #if CONFIG_COMP_BLOB
 struct comp_data_blob_handler *mod_data_blob_handler_new(struct processing_module *mod);
 void mod_data_blob_handler_free(struct processing_module *mod, struct comp_data_blob_handler *dbh);

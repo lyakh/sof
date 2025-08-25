@@ -32,7 +32,6 @@ struct vmh_heap *virtual_buffers_heap;
 #define	HEAPMEM_SIZE CONFIG_SOF_ZEPHYR_VIRTUAL_HEAP_SIZE
 #endif /* CONFIG_VIRTUAL_HEAP */
 
-
 /* Zephyr includes */
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
@@ -316,6 +315,12 @@ SYS_INIT(virtual_heap_init, POST_KERNEL, 1);
 
 #endif /* CONFIG_VIRTUAL_HEAP */
 
+struct k_heap *sof_sys_heap_get(void)
+{
+	LOG_INF("use heap %p", sof_heap.heap.heap);
+	return &sof_heap;
+}
+
 static void *heap_alloc_aligned(struct k_heap *h, size_t min_align, size_t bytes)
 {
 	k_spinlock_key_t key;
@@ -420,6 +425,9 @@ void *rmalloc(uint32_t flags, size_t bytes)
 		 */
 		ptr = heap_alloc_aligned(heap, PLATFORM_DCACHE_ALIGN, bytes);
 	}
+
+	if (bytes > 4096)
+		LOG_INF("alloc %#x at %p on %p", bytes, ptr, heap->heap.heap);
 
 	return ptr;
 }
@@ -529,6 +537,8 @@ void rfree(void *ptr)
 	}
 #endif
 
+	//LOG_INF("free at %p", ptr);
+
 	heap_free(&sof_heap, ptr);
 }
 EXPORT_SYMBOL(rfree);
@@ -560,6 +570,7 @@ void sof_heap_free(struct k_heap *heap, void *addr)
 static int heap_init(void)
 {
 	sys_heap_init(&sof_heap.heap, heapmem, HEAPMEM_SIZE);
+	LOG_INF("heap init %p", sof_heap.heap.heap);
 
 #if CONFIG_L3_HEAP
 	if (l3_heap_copy.heap.heap)

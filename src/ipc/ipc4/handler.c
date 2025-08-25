@@ -877,7 +877,7 @@ __cold static int ipc4_init_module_instance(struct ipc4_message_request *ipc4)
 		return IPC4_FAILURE;
 
 	tr_dbg(&ipc_tr,
-		"ipc4_init_module_instance %x : %x",
+		"entry %x : %x",
 		(uint32_t)module_init.primary.r.module_id,
 		(uint32_t)module_init.primary.r.instance_id);
 

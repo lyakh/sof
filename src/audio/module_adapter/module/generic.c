@@ -24,8 +24,9 @@
 
 /* The __ZEPHYR__ condition is to keep cmocka tests working */
 #if CONFIG_MODULE_MEMORY_API_DEBUG && defined(__ZEPHYR__)
-#define MEM_API_CHECK_THREAD(res) __ASSERT((res)->rsrc_mngr == k_current_get(), \
-		"Module memory API operation from wrong thread")
+#define MEM_API_CHECK_THREAD(res) if ((res)->rsrc_mngr != k_current_get()) \
+		LOG_ERR("mngr %p != cur %p", (res)->rsrc_mngr, k_current_get()); else \
+		LOG_INF("mngr %p == cur %p", (res)->rsrc_mngr, k_current_get())
 #else
 #define MEM_API_CHECK_THREAD(res)
 #endif
@@ -76,10 +77,24 @@ int module_load_config(struct comp_dev *dev, const void *cfg, size_t size)
 	return ret;
 }
 
+void mod_resource_init(struct processing_module *mod)
+{
+	struct module_resources *rsrc = &mod->priv.resources;
+
+	/* Init memory list */
+	list_init(&rsrc->mem_list);
+	list_init(&rsrc->free_cont_list);
+	list_init(&rsrc->cont_chunk_list);
+	rsrc->heap_usage = 0;
+	rsrc->heap_high_water_mark = 0;
+#if CONFIG_MODULE_MEMORY_API_DEBUG && defined(__ZEPHYR__)
+	rsrc->rsrc_mngr = k_current_get();
+#endif
+}
+
 int module_init(struct processing_module *mod)
 {
 	int ret;
-	struct module_data *md = &mod->priv;
 	struct comp_dev *dev = mod->dev;
 	const struct module_interface *const interface = dev->drv->adapter_ops;
 
@@ -106,21 +121,11 @@ int module_init(struct processing_module *mod)
 		return -EIO;
 	}
 
-	/* Init memory list */
-	list_init(&md->resources.mem_list);
-	list_init(&md->resources.free_cont_list);
-	list_init(&md->resources.cont_chunk_list);
-	md->resources.heap_usage = 0;
-	md->resources.heap_high_water_mark = 0;
-#if CONFIG_MODULE_MEMORY_API_DEBUG && defined(__ZEPHYR__)
-	md->resources.rsrc_mngr = k_current_get();
-#endif
 	/* Now we can proceed with module specific initialization */
-#if CONFIG_IPC_MAJOR_4
-	if (mod->dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+	if (IS_ENABLED(CONFIG_IPC_MAJOR_4) &&
+	    mod->dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
 		ret = scheduler_dp_rtio_ipc(mod, SOF_IPC4_MOD_INIT_INSTANCE, NULL);
 	else
-#endif
 		ret = interface->init(mod);
 
 	if (ret) {
@@ -131,6 +136,8 @@ int module_init(struct processing_module *mod)
 
 	comp_dbg(dev, "module_init() done");
 #if CONFIG_IPC_MAJOR_3
+	struct module_data *md = &mod->priv;
+
 	md->state = MODULE_INITIALIZED;
 #endif
 
@@ -176,6 +183,17 @@ static void container_put(struct processing_module *mod, struct module_memory *c
 	list_item_append(&container->mem_list, &res->free_cont_list);
 }
 
+void mod_heap_info(struct processing_module *mod, uint32_t *size, uintptr_t *start)
+{
+	struct module_resources *res = &mod->priv.resources;
+
+	if (size)
+		*size = res->heap_size;
+
+	if (start)
+		*start = (uintptr_t)res->heap_mem;
+}
+
 /**
  * Allocates aligned memory block for module.
  * @param mod		Pointer to the module this memory block is allocatd for.
@@ -185,7 +203,7 @@ static void container_put(struct processing_module *mod, struct module_memory *c
  *
  * The allocated memory is automatically freed when the module is unloaded.
  */
-void *mod_alloc_align(struct processing_module *mod, uint32_t size, uint32_t alignment)
+void *mod_alloc_ext(struct processing_module *mod, uint32_t flags, size_t size, size_t alignment)
 {
 	struct module_memory *container = container_get(mod);
 	struct module_resources *res = &mod->priv.resources;
@@ -203,7 +221,7 @@ void *mod_alloc_align(struct processing_module *mod, uint32_t size, uint32_t ali
 	}
 
 	/* Allocate memory for module */
-	ptr = sof_heap_alloc(mod_heap, 0, size, alignment);
+	ptr = sof_heap_alloc(mod_heap, flags, size, alignment);
 	if (!ptr) {
 		comp_err(mod->dev, "mod_alloc: failed to allocate memory for comp %x.",
 			 dev_comp_id(mod->dev));
@@ -222,6 +240,12 @@ void *mod_alloc_align(struct processing_module *mod, uint32_t size, uint32_t ali
 
 	return ptr;
 }
+EXPORT_SYMBOL(mod_alloc_ext);
+
+void *mod_alloc_align(struct processing_module *mod, size_t size, size_t alignment)
+{
+	return mod_alloc_ext(mod, 0, size, alignment);
+}
 EXPORT_SYMBOL(mod_alloc_align);
 
 /**
@@ -233,7 +257,7 @@ EXPORT_SYMBOL(mod_alloc_align);
  * Like mod_alloc_align() but the alignment can not be specified. However,
  * rballoc() will always aligns the memory to PLATFORM_DCACHE_ALIGN.
  */
-void *mod_alloc(struct processing_module *mod, uint32_t size)
+void *mod_alloc(struct processing_module *mod, size_t size)
 {
 	return mod_alloc_align(mod, size, 0);
 }
@@ -247,7 +271,7 @@ EXPORT_SYMBOL(mod_alloc);
  *
  * Like mod_alloc() but the allocated memory is initialized to zero.
  */
-void *mod_zalloc(struct processing_module *mod, uint32_t size)
+void *mod_zalloc(struct processing_module *mod, size_t size)
 {
 	void *ret = mod_alloc(mod, size);
 

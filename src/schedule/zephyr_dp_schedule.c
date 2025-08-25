@@ -23,6 +23,7 @@
 
 #include <zephyr/kernel/thread.h>
 #include <zephyr/rtio/rtio.h>
+#include <zephyr/sys/sem.h>
 
 LOG_MODULE_REGISTER(dp_schedule, CONFIG_SOF_LOG_LEVEL);
 SOF_DEFINE_REG_UUID(dp_sched);
@@ -42,14 +43,26 @@ struct scheduler_dp_data {
 	struct task ll_tick_src;	/* LL task - source of DP tick */
 };
 
+enum sof_dp_part_type {
+	SOF_DP_PART_HEAP,
+	SOF_DP_PART_IPC,
+	SOF_DP_PART_TYPE_COUNT,
+};
+
 struct task_dp_pdata {
 	k_tid_t thread_id;		/* zephyr thread ID */
-	struct k_thread thread;		/* memory space for a thread */
+	struct k_thread *thread;	/* memory space for a thread */
 	uint32_t deadline_clock_ticks;	/* dp module deadline in Zephyr ticks */
 	k_thread_stack_t __sparse_cache *p_stack;	/* pointer to thread stack */
-	size_t stack_size;		/* size of the stack in bytes */
 	struct processing_module *mod;	/* the module to be scheduled */
 	uint32_t ll_cycles_to_start;    /* current number of LL cycles till delayed start */
+	struct k_mem_domain mdom;
+	struct k_mem_partition mpart[SOF_DP_PART_TYPE_COUNT];
+};
+
+struct sched_dp_user_mem {
+	struct task task;
+	struct task_dp_pdata pdata;
 };
 
 /* Single CPU-wide lock
@@ -224,7 +237,7 @@ static enum task_state scheduler_dp_ll_tick_dummy(void *data)
  * Now - pipeline is in stable state, CPU used almost in 100% (it would be 100% if DP3
  * needed 1.2ms for processing - but the example would be too complicated)
  */
-void scheduler_dp_ll_tick(void *receiver_data, enum notify_id event_type, void *caller_data)
+static void scheduler_dp_ll_tick(void *receiver_data, enum notify_id event_type, void *caller_data)
 {
 	(void)receiver_data;
 	(void)event_type;
@@ -314,6 +327,7 @@ static int scheduler_dp_task_cancel(void *data, struct task *task)
 
 	/* wait till the task has finished, if there was any task created */
 	k_thread_abort(pdata->thread_id);
+	k_object_free(pdata->thread);
 
 	pdata->thread_id = NULL;
 
@@ -329,7 +343,7 @@ static int scheduler_dp_task_free(void *data, struct task *task)
 	pdata->thread_id = NULL;
 
 	/* free task stack */
-	rfree((__sparse_force void *)pdata->p_stack);
+	k_thread_stack_free(pdata->p_stack);
 	pdata->p_stack = NULL;
 
 	/* all other memory has been allocated as a single malloc, will be freed later by caller */
@@ -337,7 +351,7 @@ static int scheduler_dp_task_free(void *data, struct task *task)
 }
 
 /* TODO: make this a shared kernel->module buffer for IPC parameters */
-static uint8_t ipc_buf[4096];
+static uint8_t ipc_buf[4096] __aligned(4096);
 
 struct ipc4_mod_bind {
 	struct ipc4_module_bind_unbind bu;
@@ -361,7 +375,7 @@ struct ipc4_flat {
 
 /* Pack IPC input data */
 static int ipc_rtio_flatten(unsigned int cmd, union scheduler_dp_rtio_ipc_param *param,
-			    struct rtio_iodev_sqe *iodev_sqe, struct ipc4_flat *flat)
+			    struct ipc4_flat *flat)
 {
 	flat->cmd = cmd;
 
@@ -442,6 +456,20 @@ static void ipc_rtio_unflatten_run(struct processing_module *pmod, struct ipc4_f
 	}
 }
 
+static void dump_state(const struct k_thread *thread, void *user_data)
+{
+	char state_str[32];
+
+	k_thread_state_str(thread, state_str, sizeof(state_str));
+
+	if (state_str[0] == '\0')
+		printk("thread %p entry %p state %x\n",
+		       thread, (void *)thread->entry.pEntry, thread->base.thread_state);
+	else
+		printk("thread %p entry %p state %s\n", thread, (void *)thread->entry.pEntry,
+		       state_str);
+}
+
 /* Signal an IPC and wait for processing completion */
 int scheduler_dp_rtio_ipc(struct processing_module *pmod, enum sof_ipc4_module_type cmd,
 			  union scheduler_dp_rtio_ipc_param *param)
@@ -455,9 +483,13 @@ int scheduler_dp_rtio_ipc(struct processing_module *pmod, enum sof_ipc4_module_t
 
 	if (cmd == SOF_IPC4_MOD_INIT_INSTANCE) {
 		/* Wait for the DP thread to start */
+		tr_info(&dp_tr, "Wait for DP");
 		ret = k_sem_take(&dp_rtio_sync_sem, K_MSEC(100));
-		if (ret == -EAGAIN)
-			return -ETIMEDOUT;
+		if (ret < 0) {
+			tr_err(&dp_tr, "DP thread start timeout");
+			return ret;
+		}
+		tr_info(&dp_tr, "DP thread started");
 	}
 
 	k_spinlock_key_t key = k_spin_lock(&rtio_lock);
@@ -479,16 +511,21 @@ int scheduler_dp_rtio_ipc(struct processing_module *pmod, enum sof_ipc4_module_t
 		tr_dbg(&dp_tr, "RTIO signal %p IPC cmd %d trig %d", pmod, cmd,
 		       param ? param->pipeline_state.trigger_cmd : -EINVAL);
 
-		ret = ipc_rtio_flatten(cmd, param, iodev_sqe, flat);
+		ret = ipc_rtio_flatten(cmd, param, flat);
 		if (!ret)
 			rtio_iodev_sqe_ok(iodev_sqe, 0);
 	}
 
 	k_spin_unlock(&rtio_lock, key);
 
+	k_thread_foreach_filter_by_cpu(2, dump_state, NULL);
 	if (sqe && !ret) {
-		k_sem_take(&dp_rtio_ipc_sem, K_FOREVER);
+#if 1 // changing this to 0 makes the user-space DP thread wake up in line 621
+		k_msleep(5);
+#elif 0 // but actually this part is needed
+		k_sem_take(&dp_rtio_sync_sem, K_FOREVER);
 		ret = flat->ret;
+#endif
 	}
 
 	return ret;
@@ -519,12 +556,12 @@ static struct rtio_sqe *zephyr_dp_rtio_handle(struct rtio_iodev_sqe *iodev_sqe,
 {
 	struct rtio_sqe *sqe_handle = NULL;
 
-	rtio_sqe_prep_read(&iodev_sqe->sqe, &producer_iodev,
-			   RTIO_PRIO_NORM, NULL, 0, udata);
+	rtio_sqe_prep_nop(&iodev_sqe->sqe, &producer_iodev, udata);
 
 	/* Copy sqe into the kernel mode and get a handle out */
 	int ret = rtio_sqe_copy_in_get_handles(&dp_consumer, &iodev_sqe->sqe,
 					       &sqe_handle, 1);
+
 	if (ret < 0)
 		tr_warn(&dp_tr, "DP RTIO: no SQE handle!");
 	else
@@ -533,6 +570,7 @@ static struct rtio_sqe *zephyr_dp_rtio_handle(struct rtio_iodev_sqe *iodev_sqe,
 	return sqe_handle;
 }
 
+#include <zephyr/internal/syscall_handler.h>
 /* Thread function called in component context, on target core */
 static void dp_thread_fn(void *p1, void *p2, void *p3)
 {
@@ -543,12 +581,14 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 	struct sof_user_data sof_rtio_ipc = {IPC_READ_SQE,};
 	struct sof_user_data sof_rtio_audio = {AUDIO_READ_SQE,};
 	struct rtio_iodev_sqe mod_sqe[N_READ_SQE];
-	unsigned int lock_key;
+	//unsigned int lock_key;
 	enum task_state state;
 	bool task_stop;
 
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
+
+	tr_info(&dp_tr, "DP thread %p", k_current_get());
 
 	for (unsigned int i = 0; i < N_READ_SQE; i++) {
 		mod_sqe[i].next = NULL;
@@ -557,7 +597,7 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 	}
 
 	do {
-		k_spinlock_key_t key = k_spin_lock(&rtio_lock);
+		//k_spinlock_key_t key = k_spin_lock(&rtio_lock);
 		bool ready;
 
 		/* prepare and submit SQEs */
@@ -568,19 +608,19 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 			pmod->ipc_sqe = zephyr_dp_rtio_handle(mod_sqe + IPC_READ_SQE,
 							      &sof_rtio_ipc, &ipc_new);
 
-		k_spin_unlock(&rtio_lock, key);
+		//k_spin_unlock(&rtio_lock, key);
 
 		/* Submit SQEs without waiting */
 		rtio_submit(&dp_consumer, 0);
-
 		if (first) {
 			/*
 			 * The IPC RTIO completion function is waiting for SQEs to be submitted,
 			 * it can proceed now.
 			 */
 			first = false;
-			k_sem_give(&dp_rtio_sync_sem);
+			k_sem_give(&dp_rtio_sync_sem); // if line 523 has a "1," this doesn't return
 		}
+		for (;;) ; // BUG hang here
 
 		/*
 		 * The thread is started immediately after creation, it stops on
@@ -602,9 +642,9 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 			tr_dbg(&dp_tr, "got IPC RTIO for %p state %d", pmod, task->state);
 			ipc_new = true;
 			ipc_rtio_unflatten_run(pmod, (struct ipc4_flat *)ipc_buf);
-			k_sem_give(&dp_rtio_ipc_sem);
+			k_sem_give(&dp_rtio_sync_sem);
 
-			lock_key = scheduler_dp_lock();
+			//lock_key = scheduler_dp_lock();
 			break;
 		case AUDIO_READ_SQE:
 			/* handle audio */
@@ -621,7 +661,7 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 					state = task->state;	/* to avoid undefined variable warning */
 			}
 
-			lock_key = scheduler_dp_lock();
+			//lock_key = scheduler_dp_lock();
 
 			/*
 			 * check if task is still running, may have been canceled by external call
@@ -657,8 +697,7 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 		/* if true exit the while loop, terminate the thread */
 		task_stop = task->state == SOF_TASK_STATE_COMPLETED ||
 			task->state == SOF_TASK_STATE_CANCEL;
-
-		scheduler_dp_unlock(lock_key);
+		//scheduler_dp_unlock(lock_key);
 	} while (!task_stop);
 
 	/* call task_complete  */
@@ -752,10 +791,7 @@ int scheduler_dp_task_init(struct task **task,
 	void __sparse_cache *p_stack = NULL;
 
 	/* memory allocation helper structure */
-	struct {
-		struct task task;
-		struct task_dp_pdata pdata;
-	} *task_memory;
+	struct sched_dp_user_mem *task_memory;
 
 	int ret;
 
@@ -769,26 +805,29 @@ int scheduler_dp_task_init(struct task **task,
 	 * As the structure contains zephyr kernel specific data, it must be located in
 	 * shared, non cached memory
 	 */
-	task_memory = rzalloc(SOF_MEM_FLAG_KERNEL | SOF_MEM_FLAG_COHERENT,
-			      sizeof(*task_memory));
+	task_memory = mod_alloc_ext(mod, SOF_MEM_FLAG_COHERENT, sizeof(*task_memory), 0);
 	if (!task_memory) {
 		tr_err(&dp_tr, "memory alloc failed");
 		return -ENOMEM;
 	}
 
+	memset(task_memory, 0, sizeof(*task_memory));
+
 	/* allocate stack - must be aligned and cached so a separate alloc */
 	stack_size = Z_KERNEL_STACK_SIZE_ADJUST(stack_size);
-	p_stack = (__sparse_force void __sparse_cache *)
-		rballoc_align(SOF_MEM_FLAG_KERNEL, stack_size, Z_KERNEL_STACK_OBJ_ALIGN);
+	p_stack = k_thread_stack_alloc(stack_size, K_USER);
 	if (!p_stack) {
 		tr_err(&dp_tr, "stack alloc failed");
 		ret = -ENOMEM;
 		goto err;
 	}
+	tr_info(&dp_tr, "stack alloc %zu thread %p heap %p task %d", stack_size, _current,
+		_current->resource_pool, (int)task_memory);
+
+	struct task *ptask = &task_memory->task;
 
 	/* internal SOF task init */
-	ret = schedule_task_init(&task_memory->task, uid, SOF_SCHEDULE_DP, 0, ops->run,
-				 mod, core, 0);
+	ret = schedule_task_init(ptask, uid, SOF_SCHEDULE_DP, 0, ops->run, mod, core, 0);
 	if (ret < 0) {
 		tr_err(&dp_tr, "schedule_task_init failed");
 		goto err;
@@ -797,29 +836,77 @@ int scheduler_dp_task_init(struct task **task,
 	struct task_dp_pdata *pdata = &task_memory->pdata;
 
 	/* initialize other task structures */
-	task_memory->task.ops.complete = ops->complete;
-	task_memory->task.ops.get_deadline = ops->get_deadline;
-	task_memory->task.state = SOF_TASK_STATE_INIT;
-	task_memory->task.core = core;
-	task_memory->task.priv_data = pdata;
-
-	/* success, fill the structures */
+	ptask->ops.complete = ops->complete;
+	ptask->ops.get_deadline = ops->get_deadline;
+	ptask->priv_data = pdata;
 	pdata->p_stack = p_stack;
-	pdata->stack_size = stack_size;
 	pdata->mod = mod;
-	*task = &task_memory->task;
+
+	*task = ptask;
 
 	/* create a zephyr thread for the task */
-	pdata->thread_id = k_thread_create(&pdata->thread, (__sparse_force void *)p_stack,
-					   stack_size, dp_thread_fn, &task_memory->task, NULL, NULL,
-					   CONFIG_DP_THREAD_PRIORITY, K_USER, K_FOREVER);
+	tr_info(&dp_tr, "%d", __LINE__);
+	pdata->thread = k_object_alloc(K_OBJ_THREAD);
+	if (!pdata->thread)
+		goto err;
+	pdata->thread_id = k_thread_create(pdata->thread, (__sparse_force void *)p_stack,
+					   stack_size, dp_thread_fn, ptask, NULL, NULL,
+					   CONFIG_DP_THREAD_PRIORITY,
+					   K_USER, K_FOREVER);
+	tr_info(&dp_tr, "%d", __LINE__);
+
+	k_thread_access_grant(pdata->thread, &dp_rtio_sync_sem, &dp_rtio_ipc_sem, &producer_iodev);
+	tr_info(&dp_tr, "thread access %p", pdata->thread);
+
+	rtio_access_grant(&dp_consumer, pdata->thread);
+	tr_info(&dp_tr, "thread %p ok rtio %p", pdata->thread, &dp_consumer);
 
 	/* pin the thread to specific core */
 	ret = k_thread_cpu_pin(pdata->thread_id, core);
 	if (ret < 0) {
-		tr_err(&dp_tr, "zephyr_dp_task_init(): zephyr task pin to core failed");
+		tr_err(&dp_tr, "zephyr task pin to core failed");
 		goto e_thread;
 	}
+
+	//tr_info(&dp_tr, "core ok");
+
+	int pidx;
+
+	size_t size;
+	uintptr_t start;
+	struct k_mem_partition *ppart[SOF_DP_PART_TYPE_COUNT/* + 1*/];
+
+	for (pidx = 0; pidx < ARRAY_SIZE(ppart); pidx++)
+		ppart[pidx] = pdata->mpart + pidx;
+
+	mod_heap_info(mod, &size, &start);
+	pdata->mpart[SOF_DP_PART_HEAP] = (struct k_mem_partition){
+		.start = start,
+		.size = size,
+		.attr = K_MEM_PARTITION_P_RW_U_RW,
+	};
+	pdata->mpart[SOF_DP_PART_IPC] = (struct k_mem_partition){
+		.start = (uintptr_t)&ipc_buf,
+		.size = sizeof(ipc_buf),
+		.attr = K_MEM_PARTITION_P_RW_U_RW,
+	};
+
+	/* Create a memory domain, add the thread and its stack and heap to it */
+	ret = k_mem_domain_init(&pdata->mdom, SOF_DP_PART_TYPE_COUNT/* + 1*/, ppart);
+	if (ret < 0) {
+		tr_err(&dp_tr, "failed to init mem domain %d", ret);
+		goto e_thread;
+	}
+
+	//tr_info(&dp_tr, "domain ok");
+
+	ret = k_mem_domain_add_thread(&pdata->mdom, pdata->thread_id);
+	if (ret < 0) {
+		tr_err(&dp_tr, "failed to add thread to domain %d", ret);
+		goto e_thread;
+	}
+
+	//tr_info(&dp_tr, "domain thread ok");
 
 	k_thread_start(pdata->thread_id);
 
@@ -827,6 +914,7 @@ int scheduler_dp_task_init(struct task **task,
 
 e_thread:
 	k_thread_abort(pdata->thread_id);
+	k_object_free(pdata->thread);
 err:
 	/* cleanup - free all allocated resources */
 	rfree((__sparse_force void *)p_stack);

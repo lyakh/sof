@@ -578,7 +578,7 @@ static struct comp_dev *lib_manager_module_create(const struct comp_driver *drv,
 						  const void *spec)
 {
 	const struct sof_man_fw_desc *const desc = lib_manager_get_library_manifest(config->id);
-	const struct ipc_config_process *args = (struct ipc_config_process *)spec;
+	const struct ipc_config_process *args = (const struct ipc_config_process *)spec;
 	const uint32_t entry_index = LIB_MANAGER_GET_MODULE_INDEX(config->id);
 	const struct module_interface *ops = NULL;
 	const struct sof_man_module *mod;
