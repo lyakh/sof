@@ -60,6 +60,7 @@ struct audio_buffer_ops {
 				       const uint32_t frame_align_req);
 };
 
+struct k_heap;
 /* base class for all buffers, all buffers must inherit from it */
 struct sof_audio_buffer {
 	CORE_CHECK_STRUCT_FIELD;
@@ -110,6 +111,8 @@ struct sof_audio_buffer {
 	 * should not be in struct sof_audio_buffer at all, kept for pipeline2.0 transition
 	 */
 	bool walking;		/**< indicates if the buffer is being walked */
+
+	struct k_heap *heap;
 };
 
 #if CONFIG_PIPELINE_2_0

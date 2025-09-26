@@ -9,6 +9,10 @@
 
 #include <sof/audio/ring_buffer.h>
 #include <sof/audio/component.h>
+#include <sof/audio/module_adapter/module/generic.h>
+#include <module/module/base.h>
+
+#include <sof/schedule/dp_schedule.h>
 
 #include <rtos/alloc.h>
 #include <ipc/topology.h>
@@ -96,8 +100,17 @@ static void ring_buffer_free(struct sof_audio_buffer *audio_buffer)
 	struct ring_buffer *ring_buffer =
 			container_of(audio_buffer, struct ring_buffer, audio_buffer);
 
+	struct k_heap *heap = audio_buffer->heap;
+
 	rfree((__sparse_force void *)ring_buffer->_data_buffer);
-	rfree(ring_buffer);
+	sof_heap_free(heap, ring_buffer);
+
+	if (heap) {
+		struct dp_heap_user *mod_heap_user = CONTAINER_OF(heap, struct dp_heap_user, heap);
+
+		if (!--mod_heap_user->client_count)
+			rfree(mod_heap_user);
+	}
 }
 
 static void ring_buffer_reset(struct sof_audio_buffer *audio_buffer)
@@ -284,14 +297,23 @@ struct ring_buffer *ring_buffer_create(struct comp_dev *dev, size_t min_availabl
 				       size_t min_free_space, bool is_shared,
 				       uint32_t id)
 {
-	struct ring_buffer *ring_buffer;
 	int memory_flags = (is_shared ? SOF_MEM_FLAG_COHERENT : 0) |
 			   user_get_buffer_memory_region(dev->drv);
+	struct k_heap *heap = dev->mod->priv.resources.heap;
+	struct ring_buffer *ring_buffer = sof_heap_alloc(heap, memory_flags,
+							 sizeof(*ring_buffer), 0);
 
-	/* allocate ring_buffer structure */
-	ring_buffer = rzalloc(memory_flags, sizeof(*ring_buffer));
 	if (!ring_buffer)
 		return NULL;
+
+	memset(ring_buffer, 0, sizeof(*ring_buffer));
+	ring_buffer->audio_buffer.heap = heap;
+
+	if (heap) {
+		struct dp_heap_user *mod_heap_user = CONTAINER_OF(heap, struct dp_heap_user, heap);
+
+		mod_heap_user->client_count++;
+	}
 
 	/* init base structure. The audio_stream_params is NULL because ring_buffer
 	 * is currently used as a secondary buffer for DP only
@@ -372,6 +394,6 @@ struct ring_buffer *ring_buffer_create(struct comp_dev *dev, size_t min_availabl
 	return ring_buffer;
 err:
 	tr_err(&ring_buffer_tr, "Ring buffer creation failure");
-	rfree(ring_buffer);
+	sof_heap_free(heap, ring_buffer);
 	return NULL;
 }

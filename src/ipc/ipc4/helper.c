@@ -600,15 +600,23 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 
 #if CONFIG_ZEPHYR_DP_SCHEDULER
 	struct ring_buffer *ring_buffer = NULL;
+	struct k_heap *dp_heap;
+	struct comp_dev *dp;
 
-	if (sink->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP ||
-	    source->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP) {
-		bool dp_on_source = source->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP;
+	if (sink->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		dp = sink;
+	else if (source->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		dp = source;
+	else
+		dp = NULL;
+
+	dp_heap = dp && dp->mod ? dp->mod->priv.resources.heap : NULL;
+
+	if (dp) {
 		struct sof_source *src = audio_buffer_get_source(&buffer->audio_buffer);
 		struct sof_sink *snk = audio_buffer_get_sink(&buffer->audio_buffer);
 
-		ring_buffer = ring_buffer_create(dp_on_source ? source : sink,
-						 source_get_min_available(src),
+		ring_buffer = ring_buffer_create(dp, source_get_min_available(src),
 						 sink_get_min_free_space(snk),
 						 audio_buffer_is_shared(&buffer->audio_buffer),
 						 buf_get_id(buffer));
@@ -616,11 +624,11 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 			goto free;
 
 		/* data destination module needs to use ring_buffer */
-		audio_buffer_attach_secondary_buffer(&buffer->audio_buffer, dp_on_source,
+		audio_buffer_attach_secondary_buffer(&buffer->audio_buffer, dp == source,
 						     &ring_buffer->audio_buffer);
 	}
-
 #endif /* CONFIG_ZEPHYR_DP_SCHEDULER */
+
 	/*
 	 * Connect and bind the buffer to both source and sink components with LL processing been
 	 * blocked on corresponding core(s) to prevent IPC or IDC task getting preempted which
@@ -697,6 +705,10 @@ e_src_bind:
 e_sink_connect:
 	pipeline_disconnect(source, buffer, PPL_CONN_DIR_COMP_TO_BUFFER);
 free:
+#if CONFIG_ZEPHYR_DP_SCHEDULER
+	rfree(ring_buffer->_data_buffer);
+	sof_heap_free(dp_heap, ring_buffer);
+#endif
 	ll_unblock(cross_core_bind, flags);
 	buffer_free(buffer);
 	return IPC4_INVALID_RESOURCE_STATE;
