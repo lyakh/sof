@@ -391,7 +391,7 @@ __cold int ipc_pipeline_free(struct ipc *ipc, uint32_t comp_id)
 
 __cold static struct comp_buffer *ipc4_create_buffer(struct comp_dev *src, bool is_shared,
 						     uint32_t buf_size, uint32_t src_queue,
-						     uint32_t dst_queue)
+						     uint32_t dst_queue, struct k_heap *heap)
 {
 	struct sof_ipc_buffer ipc_buf;
 
@@ -402,7 +402,7 @@ __cold static struct comp_buffer *ipc4_create_buffer(struct comp_dev *src, bool 
 	ipc_buf.comp.id = IPC4_COMP_ID(src_queue, dst_queue);
 	ipc_buf.comp.pipeline_id = src->ipc_config.pipeline_id;
 	ipc_buf.comp.core = cpu_get_id();
-	return buffer_new(&ipc_buf, is_shared);
+	return buffer_new(heap, &ipc_buf, is_shared);
 }
 
 #if CONFIG_CROSS_CORE_STREAM
@@ -578,8 +578,24 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	else
 		buf_size = ibs * 2;
 
+	struct k_heap *dp_heap = NULL;
+
+#if CONFIG_ZEPHYR_DP_SCHEDULER
+	struct comp_dev *dp;
+
+	if (sink->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		dp = sink;
+	else if (source->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
+		dp = source;
+	else
+		dp = NULL;
+
+	if (dp && dp->mod)
+		dp_heap = dp->mod->priv.resources.heap;
+#endif
+
 	buffer = ipc4_create_buffer(source, cross_core_bind, buf_size, bu->extension.r.src_queue,
-				    bu->extension.r.dst_queue);
+				    bu->extension.r.dst_queue, dp_heap);
 	if (!buffer) {
 		tr_err(&ipc_tr, "failed to allocate buffer to bind %#x to %#x", src_id, sink_id);
 		return IPC4_OUT_OF_MEMORY;
@@ -600,17 +616,6 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 
 #if CONFIG_ZEPHYR_DP_SCHEDULER
 	struct ring_buffer *ring_buffer = NULL;
-	struct k_heap *dp_heap;
-	struct comp_dev *dp;
-
-	if (sink->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
-		dp = sink;
-	else if (source->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP)
-		dp = source;
-	else
-		dp = NULL;
-
-	dp_heap = dp && dp->mod ? dp->mod->priv.resources.heap : NULL;
 
 	if (dp) {
 		struct sof_source *src = audio_buffer_get_source(&buffer->audio_buffer);
