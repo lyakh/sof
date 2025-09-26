@@ -96,7 +96,7 @@ static void ring_buffer_free(struct sof_audio_buffer *audio_buffer)
 			container_of(audio_buffer, struct ring_buffer, audio_buffer);
 
 	rfree((__sparse_force void *)ring_buffer->_data_buffer);
-	rfree(ring_buffer);
+	sof_heap_free(audio_buffer->heap, ring_buffer);
 }
 
 static void ring_buffer_reset(struct sof_audio_buffer *audio_buffer)
@@ -283,10 +283,12 @@ struct ring_buffer *ring_buffer_create(struct k_heap *heap, size_t min_available
 				       size_t min_free_space, bool is_shared, uint32_t id)
 {
 	uint32_t flags = is_shared ? SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT : SOF_MEM_FLAG_USER;
-	struct ring_buffer *ring_buffer = rzalloc(flags, sizeof(*ring_buffer));
+	struct ring_buffer *ring_buffer = sof_heap_alloc(heap, flags, sizeof(*ring_buffer), 0);
 
 	if (!ring_buffer)
 		return NULL;
+
+	memset(ring_buffer, 0, sizeof(*ring_buffer));
 
 	/* init base structure. The audio_stream_params is NULL because ring_buffer
 	 * is currently used as a secondary buffer for DP only
@@ -298,6 +300,7 @@ struct ring_buffer *ring_buffer_create(struct k_heap *heap, size_t min_available
 			  is_shared, &ring_buffer_source_ops, &ring_buffer_sink_ops,
 			  &audio_buffer_ops, NULL);
 
+	ring_buffer->audio_buffer.heap = heap;
 	ring_buffer->audio_buffer.audio_stream_params = sof_heap_alloc(heap, flags,
 				sizeof(*ring_buffer->audio_buffer.audio_stream_params), 0);
 	if (!ring_buffer->audio_buffer.audio_stream_params)
@@ -374,6 +377,6 @@ err:
 	sof_heap_free(heap, ring_buffer->audio_buffer.audio_stream_params);
 e_params:
 	tr_err(&ring_buffer_tr, "Ring buffer creation failure");
-	rfree(ring_buffer);
+	sof_heap_free(heap, ring_buffer);
 	return NULL;
 }
