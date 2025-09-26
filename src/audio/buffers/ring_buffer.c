@@ -102,7 +102,7 @@ static void ring_buffer_free(struct sof_audio_buffer *audio_buffer)
 
 	struct k_heap *heap = audio_buffer->heap;
 
-	rfree((__sparse_force void *)ring_buffer->_data_buffer);
+	sof_heap_free(heap, (__sparse_force void *)ring_buffer->_data_buffer);
 	sof_heap_free(heap, ring_buffer);
 
 	if (heap) {
@@ -378,11 +378,11 @@ struct ring_buffer *ring_buffer_create(struct comp_dev *dev, size_t min_availabl
 	ring_buffer->data_buffer_size = 3 * max_ibs_obs;
 
 	/* allocate data buffer - always in cached memory alias */
-	ring_buffer->data_buffer_size =
-			ALIGN_UP(ring_buffer->data_buffer_size, PLATFORM_DCACHE_ALIGN);
-	ring_buffer->_data_buffer = (__sparse_force __sparse_cache void *)
-			rballoc_align(memory_flags, ring_buffer->data_buffer_size,
-				      PLATFORM_DCACHE_ALIGN);
+	ring_buffer->data_buffer_size = ALIGN_UP(ring_buffer->data_buffer_size,
+						 PLATFORM_DCACHE_ALIGN);
+	ring_buffer->_data_buffer = (__sparse_force __sparse_cache void *)sof_heap_alloc(heap,
+						memory_flags, ring_buffer->data_buffer_size,
+						PLATFORM_DCACHE_ALIGN);
 	if (!ring_buffer->_data_buffer)
 		goto err;
 

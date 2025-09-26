@@ -706,7 +706,7 @@ e_sink_connect:
 	pipeline_disconnect(source, buffer, PPL_CONN_DIR_COMP_TO_BUFFER);
 free:
 #if CONFIG_ZEPHYR_DP_SCHEDULER
-	rfree(ring_buffer->_data_buffer);
+	sof_heap_free(dp_heap, (__sparse_force void *)ring_buffer->_data_buffer);
 	sof_heap_free(dp_heap, ring_buffer);
 #endif
 	ll_unblock(cross_core_bind, flags);
