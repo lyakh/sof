@@ -250,6 +250,12 @@ EXPORT_SYMBOL(mod_alloc_ext);
  * Like comp_data_blob_handler_new() but the handler is automatically freed.
  */
 #if CONFIG_COMP_BLOB
+static void blob_free_wrapper(struct k_heap *heap, struct comp_data_blob_handler *blob_handler)
+{
+	ARG_UNUSED(heap);
+	comp_data_blob_handler_free(blob_handler);
+}
+
 struct comp_data_blob_handler *
 mod_data_blob_handler_new(struct processing_module *mod)
 {
@@ -269,7 +275,7 @@ mod_data_blob_handler_new(struct processing_module *mod)
 
 	container->ptr = dbh;
 	container->size = 0;
-	container->free = (void (*)(void *))comp_data_blob_handler_free;
+	container->free = (void (*)(struct k_heap *, void *))blob_free_wrapper;
 	list_item_prepend(&container->mem_list, &res->mem_list);
 
 	return dbh;
@@ -295,7 +301,7 @@ const void *mod_fast_get(struct processing_module *mod, const void * const dram_
 	if (!container)
 		return NULL;
 
-	ptr = fast_get(dram_ptr, size);
+	ptr = fast_get(res->heap, dram_ptr, size);
 	if (!ptr) {
 		container_put(mod, container);
 		return NULL;
@@ -303,7 +309,7 @@ const void *mod_fast_get(struct processing_module *mod, const void * const dram_
 
 	container->ptr = (void *)ptr;
 	container->size = 0;
-	container->free = (void (*)(void *))fast_put;
+	container->free = (void (*)(struct k_heap *, void *))fast_put;
 	list_item_prepend(&container->mem_list, &res->mem_list);
 
 	return ptr;
@@ -333,7 +339,7 @@ int mod_free(struct processing_module *mod, const void *ptr)
 		mem = container_of(mem_list, struct module_memory, mem_list);
 		if (mem->ptr == ptr) {
 			if (mem->free) {
-				mem->free(mem->ptr);
+				mem->free(mod_heap, mem->ptr);
 			} else {
 				sof_heap_free(mod_heap, mem->ptr);
 				res->heap_usage -= mem->size;
@@ -586,7 +592,7 @@ void mod_free_all(struct processing_module *mod)
 		struct module_memory *mem = container_of(list, struct module_memory, mem_list);
 
 		if (mem->free)
-			mem->free(mem->ptr);
+			mem->free(res->heap, mem->ptr);
 		else
 			sof_heap_free(mod_heap, mem->ptr);
 		list_item_del(&mem->mem_list);
