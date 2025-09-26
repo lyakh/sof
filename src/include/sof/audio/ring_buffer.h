@@ -120,9 +120,9 @@ struct ring_buffer {
  *			 ring_buffer's sink api
  * @param is_shared indicates if the buffer will be shared between cores
  * @param id a stream ID, accessible later by sink_get_id/source_get_id
- *
+ * @param heap Zephyr heap to allocate memory on
  */
-struct ring_buffer *ring_buffer_create(size_t min_available, size_t min_free_space, bool is_shared,
-				       uint32_t id);
+struct ring_buffer *ring_buffer_create(struct k_heap *heap, size_t min_available,
+				       size_t min_free_space, bool is_shared, uint32_t id);
 
 #endif /* __SOF_RING_BUFFER_H__ */

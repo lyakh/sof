@@ -279,17 +279,12 @@ static const struct audio_buffer_ops audio_buffer_ops = {
 	.reset = ring_buffer_reset
 };
 
-struct ring_buffer *ring_buffer_create(size_t min_available, size_t min_free_space, bool is_shared,
-				       uint32_t id)
+struct ring_buffer *ring_buffer_create(struct k_heap *heap, size_t min_available,
+				       size_t min_free_space, bool is_shared, uint32_t id)
 {
-	struct ring_buffer *ring_buffer;
+	uint32_t flags = is_shared ? SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT : SOF_MEM_FLAG_USER;
+	struct ring_buffer *ring_buffer = rzalloc(flags, sizeof(*ring_buffer));
 
-	/* allocate ring_buffer structure */
-	if (is_shared)
-		ring_buffer = rzalloc(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT,
-				      sizeof(*ring_buffer));
-	else
-		ring_buffer = rzalloc(SOF_MEM_FLAG_USER, sizeof(*ring_buffer));
 	if (!ring_buffer)
 		return NULL;
 
@@ -302,6 +297,11 @@ struct ring_buffer *ring_buffer_create(size_t min_available, size_t min_free_spa
 	audio_buffer_init(&ring_buffer->audio_buffer, BUFFER_TYPE_RING_BUFFER,
 			  is_shared, &ring_buffer_source_ops, &ring_buffer_sink_ops,
 			  &audio_buffer_ops, NULL);
+
+	ring_buffer->audio_buffer.audio_stream_params = sof_heap_alloc(heap, flags,
+				sizeof(*ring_buffer->audio_buffer.audio_stream_params), 0);
+	if (!ring_buffer->audio_buffer.audio_stream_params)
+		goto e_params;
 
 	/* set obs/ibs in sink/source interfaces */
 	sink_set_min_free_space(audio_buffer_get_sink(&ring_buffer->audio_buffer),
@@ -369,7 +369,10 @@ struct ring_buffer *ring_buffer_create(size_t min_available, size_t min_free_spa
 
 	/* return a pointer to allocated structure */
 	return ring_buffer;
+
 err:
+	sof_heap_free(heap, ring_buffer->audio_buffer.audio_stream_params);
+e_params:
 	tr_err(&ring_buffer_tr, "Ring buffer creation failure");
 	rfree(ring_buffer);
 	return NULL;

@@ -24,7 +24,8 @@ int audio_buffer_attach_secondary_buffer(struct sof_audio_buffer *buffer, bool a
 		return -EINVAL;
 
 	/* secondary buffer must share audio params with the primary buffer */
-	secondary_buffer->audio_stream_params = buffer->audio_stream_params;
+	buffer->audio_stream_params = secondary_buffer->audio_stream_params;
+
 	/* for performance reasons pointers to params are also kept in sink/src structures */
 	secondary_buffer->_sink_api.audio_stream_params = buffer->audio_stream_params;
 	secondary_buffer->_source_api.audio_stream_params = buffer->audio_stream_params;
