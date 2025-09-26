@@ -242,46 +242,6 @@ void *mod_alloc_ext(struct processing_module *mod, uint32_t flags, size_t size, 
 }
 EXPORT_SYMBOL(mod_alloc_ext);
 
-void *mod_alloc_align(struct processing_module *mod, size_t size, size_t alignment)
-{
-	return mod_alloc_ext(mod, 0, size, alignment);
-}
-EXPORT_SYMBOL(mod_alloc_align);
-
-/**
- * Allocates memory block for module.
- * @param mod	Pointer to module this memory block is allocated for.
- * @param bytes	Size in bytes.
- * @return Pointer to the allocated memory or NULL if failed.
- *
- * Like mod_alloc_align() but the alignment can not be specified. However,
- * rballoc() will always aligns the memory to PLATFORM_DCACHE_ALIGN.
- */
-void *mod_alloc(struct processing_module *mod, size_t size)
-{
-	return mod_alloc_align(mod, size, 0);
-}
-EXPORT_SYMBOL(mod_alloc);
-
-/**
- * Allocates memory block for module and initializes it to zero.
- * @param mod	Pointer to module this memory block is allocated for.
- * @param bytes	Size in bytes.
- * @return Pointer to the allocated memory or NULL if failed.
- *
- * Like mod_alloc() but the allocated memory is initialized to zero.
- */
-void *mod_zalloc(struct processing_module *mod, size_t size)
-{
-	void *ret = mod_alloc(mod, size);
-
-	if (ret)
-		memset(ret, 0, size);
-
-	return ret;
-}
-EXPORT_SYMBOL(mod_zalloc);
-
 /**
  * Creates a blob handler and releases it when the module is unloaded
  * @param mod	Pointer to module this memory block is allocated for.

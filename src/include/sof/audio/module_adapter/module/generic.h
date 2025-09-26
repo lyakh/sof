@@ -182,9 +182,44 @@ int module_load_config(struct comp_dev *dev, const void *cfg, size_t size);
 int module_init(struct processing_module *mod);
 void mod_resource_init(struct processing_module *mod);
 void *mod_alloc_ext(struct processing_module *mod, uint32_t flags, size_t size, size_t alignment);
-void *mod_alloc_align(struct processing_module *mod, size_t size, size_t alignment);
-void *mod_alloc(struct processing_module *mod, size_t size);
-void *mod_zalloc(struct processing_module *mod, size_t size);
+
+static inline void *mod_alloc_align(struct processing_module *mod, size_t size, size_t alignment)
+{
+	return mod_alloc_ext(mod, 0, size, alignment);
+}
+
+/**
+ * Allocates memory block for module.
+ * @param mod	Pointer to module this memory block is allocated for.
+ * @param bytes	Size in bytes.
+ * @return Pointer to the allocated memory or NULL if failed.
+ *
+ * Like mod_alloc_align() but the alignment can not be specified. However,
+ * rballoc() will always aligns the memory to PLATFORM_DCACHE_ALIGN.
+ */
+static inline void *mod_alloc(struct processing_module *mod, size_t size)
+{
+	return mod_alloc_align(mod, size, 0);
+}
+
+/**
+ * Allocates memory block for module and initializes it to zero.
+ * @param mod	Pointer to module this memory block is allocated for.
+ * @param bytes	Size in bytes.
+ * @return Pointer to the allocated memory or NULL if failed.
+ *
+ * Like mod_alloc() but the allocated memory is initialized to zero.
+ */
+static inline void *mod_zalloc(struct processing_module *mod, size_t size)
+{
+	void *ret = mod_alloc(mod, size);
+
+	if (ret)
+		memset(ret, 0, size);
+
+	return ret;
+}
+
 int mod_free(struct processing_module *mod, const void *ptr);
 void mod_heap_info(struct processing_module *mod, uint32_t *size, uintptr_t *start);
 #if CONFIG_COMP_BLOB
