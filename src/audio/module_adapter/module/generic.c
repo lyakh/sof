@@ -357,22 +357,6 @@ int mod_free(struct processing_module *mod, const void *ptr)
 }
 EXPORT_SYMBOL(mod_free);
 
-#if CONFIG_COMP_BLOB
-void mod_data_blob_handler_free(struct processing_module *mod, struct comp_data_blob_handler *dbh)
-{
-	mod_free(mod, (void *)dbh);
-}
-EXPORT_SYMBOL(mod_data_blob_handler_free);
-#endif
-
-#if CONFIG_FAST_GET
-void mod_fast_put(struct processing_module *mod, const void *sram_ptr)
-{
-	mod_free(mod, sram_ptr);
-}
-EXPORT_SYMBOL(mod_fast_put);
-#endif
-
 int module_prepare(struct processing_module *mod,
 		   struct sof_source **sources, int num_of_sources,
 		   struct sof_sink **sinks, int num_of_sinks)
