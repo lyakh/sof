@@ -27,10 +27,10 @@ void audio_stream_recalc_align(struct audio_stream *stream)
 	uint32_t process_size;
 	uint32_t frame_size = audio_stream_frame_bytes(stream);
 
-	stream->runtime_stream_params->align_frame_cnt =
+	stream->runtime_stream_params.align_frame_cnt =
 			audio_stream_frame_align_get(byte_align, frame_align_req, frame_size);
-	process_size = stream->runtime_stream_params->align_frame_cnt * frame_size;
-	stream->runtime_stream_params->align_shift_idx	=
+	process_size = stream->runtime_stream_params.align_frame_cnt * frame_size;
+	stream->runtime_stream_params.align_shift_idx	=
 			(is_power_of_2(process_size) ? 31 : 32) - clz(process_size);
 }
 EXPORT_SYMBOL(audio_stream_recalc_align);

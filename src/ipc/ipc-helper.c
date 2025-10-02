@@ -82,8 +82,8 @@ __cold struct comp_buffer *buffer_new(struct k_heap *heap, const struct sof_ipc_
 	buffer = buffer_alloc(heap, desc->size, flags, PLATFORM_DCACHE_ALIGN,
 			      is_shared);
 	if (buffer) {
-		buffer->stream.runtime_stream_params->id = desc->comp.id;
-		buffer->stream.runtime_stream_params->pipeline_id = desc->comp.pipeline_id;
+		buffer->stream.runtime_stream_params.id = desc->comp.id;
+		buffer->stream.runtime_stream_params.pipeline_id = desc->comp.pipeline_id;
 		buffer->core = desc->comp.core;
 
 		memcpy_s(&buffer->tctx, sizeof(struct tr_ctx),

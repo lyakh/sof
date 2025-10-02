@@ -207,16 +207,13 @@ static struct comp_buffer *buffer_alloc_struct(struct k_heap *heap,
 	}
 
 	memset(buffer, 0, sizeof(*buffer));
-	buffer->stream.runtime_stream_params = sof_heap_alloc(heap, flags,
-						sizeof(*buffer->stream.runtime_stream_params), 0);
-
 	buffer->flags = flags;
 	/* Force channels to 2 for init to prevent bad call to clz in buffer_init_stream */
-	buffer->stream.runtime_stream_params->channels = 2;
+	buffer->stream.runtime_stream_params.channels = 2;
 
 	audio_buffer_init(&buffer->audio_buffer, BUFFER_TYPE_LEGACY_BUFFER, is_shared,
 			  &comp_buffer_source_ops, &comp_buffer_sink_ops, &audio_buffer_ops,
-			  buffer->stream.runtime_stream_params);
+			  &buffer->stream.runtime_stream_params);
 
 	/* From here no more uncached access to the buffer object, except its list headers */
 	audio_stream_set_addr(&buffer->stream, stream_addr);

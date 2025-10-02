@@ -45,7 +45,7 @@ extern struct tr_ctx buffer_tr;
 #define trace_buf_get_tr_ctx(buf_ptr) (&(buf_ptr)->tctx)
 
 /** \brief Retrieves subid (comp id) from the buffer */
-#define buf_get_id(buf_ptr) ((buf_ptr)->stream.runtime_stream_params->id)
+#define buf_get_id(buf_ptr) ((buf_ptr)->stream.runtime_stream_params.id)
 
 #if defined(__ZEPHYR__) && defined(CONFIG_ZEPHYR_LOG)
 
@@ -301,7 +301,7 @@ static inline struct comp_dev *buffer_get_comp(struct comp_buffer *buffer, int d
 
 static inline uint32_t buffer_pipeline_id(const struct comp_buffer *buffer)
 {
-	return buffer->stream.runtime_stream_params->pipeline_id;
+	return buffer->stream.runtime_stream_params.pipeline_id;
 }
 
 /* Run-time buffer re-configuration calls this too, so it must use cached access */

@@ -210,7 +210,7 @@ void mic_privacy_process(struct comp_dev *dev, struct mic_privacy_data *mic_priv
 
 	sg_size_in_bytes = audio_stream_frame_bytes(&buffer->stream);
 	uint32_t one_ms_in_bytes = sg_size_in_bytes *
-		(buffer->stream.runtime_stream_params->rate / 1000);
+		(buffer->stream.runtime_stream_params.rate / 1000);
 	uint32_t copy_bytes = copy_samples * audio_stream_sample_bytes(&buffer->stream);
 
 	switch (mic_priv->mic_privacy_state) {
