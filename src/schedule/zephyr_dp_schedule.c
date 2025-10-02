@@ -23,7 +23,6 @@
 #include <ipc4/base_fw.h>
 
 #include <zephyr/kernel/thread.h>
-#include <zephyr/rtio/rtio.h>
 #include <zephyr/sys/sem.h>
 
 LOG_MODULE_REGISTER(dp_schedule, CONFIG_SOF_LOG_LEVEL);
@@ -31,13 +30,13 @@ SOF_DEFINE_REG_UUID(dp_sched);
 
 DECLARE_TR_CTX(dp_tr, SOF_UUID(dp_sched_uuid), LOG_LEVEL_INFO);
 
-/* RTIO context with 2 submit and 2 complete entries for IPC and audio */
 // FIXME: should be per-DP task
-RTIO_DEFINE(dp_consumer, 2, 2);
 K_SEM_DEFINE(dp_rtio_ipc_sem, 0, K_SEM_MAX_LIMIT);
 K_SEM_DEFINE(dp_rtio_sync_sem, 0, 1);
 
 static struct k_spinlock rtio_lock;
+
+static struct k_mem_domain dp_mdom;
 
 struct scheduler_dp_data {
 	struct list_item tasks;		/* list of active dp tasks */
@@ -51,12 +50,6 @@ enum sof_dp_part_type {
 	SOF_DP_PART_TYPE_COUNT,
 };
 
-enum sof_dp_rtio_read_id {
-	IPC_READ_SQE,
-	AUDIO_READ_SQE,
-	N_READ_SQE,
-};
-
 struct task_dp_pdata {
 	k_tid_t thread_id;		/* zephyr thread ID */
 	struct k_thread *thread;	/* memory space for a thread */
@@ -64,15 +57,15 @@ struct task_dp_pdata {
 	k_thread_stack_t __sparse_cache *p_stack;	/* pointer to thread stack */
 	struct processing_module *mod;	/* the module to be scheduled */
 	uint32_t ll_cycles_to_start;    /* current number of LL cycles till delayed start */
-	enum sof_dp_rtio_read_id id;
-	struct k_mem_domain mdom;
+	unsigned char pend_ipc;
+	unsigned char pend_proc;
+	unsigned int dbg_cnt;
 	struct k_mem_partition mpart[SOF_DP_PART_TYPE_COUNT];
 };
 
 struct sched_dp_user_mem {
 	struct task task;
 	struct task_dp_pdata pdata;
-	struct rtio_iodev_api api;
 	struct comp_driver drv;
 	struct module_interface ops;
 };
@@ -105,8 +98,6 @@ static enum task_state scheduler_dp_ll_tick_dummy(void *data)
 {
 	return SOF_TASK_STATE_RESCHEDULE;
 }
-
-//#define USE_RTIO
 
 /*
  * function called after every LL tick
@@ -299,28 +290,12 @@ static void scheduler_dp_ll_tick(void *receiver_data, enum notify_id event_type,
 		curr_task->state = SOF_TASK_STATE_RUNNING;
 
 		k_spinlock_key_t key = k_spin_lock(&rtio_lock);
-#ifdef USE_RTIO
-		struct rtio_sqe *sqe = mod->audio_sqe;
 
-		if (sqe) {
-			mod->audio_sqe = NULL;
-			rtio_iodev_sqe_ok(CONTAINER_OF(sqe, struct rtio_iodev_sqe, sqe), 0);
-		}
-#endif
+		pdata->pend_proc = 1;
+		k_sem_give(&dp_rtio_ipc_sem);
 		k_spin_unlock(&rtio_lock, key);
 	}
 	scheduler_dp_unlock(lock_key);
-}
-
-static void dp_rtio_drop_all(struct rtio *r)
-{
-	struct rtio_sqe_pool *pool = r->sqe_pool;
-
-	mpsc_init(&pool->free_q);
-	for (unsigned int i = 0; i < pool->pool_size; i++)
-		mpsc_push(&pool->free_q, &pool->pool[i].q);
-
-	pool->pool_free = pool->pool_size;
 }
 
 static int scheduler_dp_task_cancel(void *data, struct task *task)
@@ -339,12 +314,8 @@ static int scheduler_dp_task_cancel(void *data, struct task *task)
 	list_item_del(&task->list);
 
 	/* if there're no more DP task, stop LL tick source */
-	if (list_is_empty(&dp_sch->tasks)) {
+	if (list_is_empty(&dp_sch->tasks))
 		schedule_task_cancel(&dp_sch->ll_tick_src);
-
-		/* Move all SQEs to the free list */
-		dp_rtio_drop_all(&dp_consumer);
-	}
 
 	/* if the task is waiting on a semaphore - let it run and self-terminate */
 	scheduler_dp_unlock(lock_key);
@@ -545,104 +516,29 @@ int scheduler_dp_rtio_ipc(struct processing_module *pmod, enum sof_ipc4_module_t
 	k_spinlock_key_t key = k_spin_lock(&rtio_lock);
 
 	struct ipc4_flat *flat = (struct ipc4_flat *)ipc_buf;
-#ifdef USE_RTIO
-	struct rtio_sqe *sqe = pmod->ipc_sqe;
 
-	if (!sqe) {
-		tr_err(&dp_tr, "no RTIO on %p", pmod);
-		ret = -ENOENT;
-	} else {
-#endif
-		/* IPCs are serialised */
-		flat->ret = -ENOSYS;
+	/* IPCs are serialised */
+	flat->ret = -ENOSYS;
 
-#ifdef USE_RTIO
-		pmod->ipc_sqe = NULL;
+	tr_dbg(&dp_tr, "RTIO signal %p IPC cmd %d trig %d", pmod, cmd,
+	       param ? param->pipeline_state.trigger_cmd : -EINVAL);
 
-		struct rtio_iodev_sqe *iodev_sqe = CONTAINER_OF(sqe, struct rtio_iodev_sqe, sqe);
-#endif
-
-		tr_dbg(&dp_tr, "RTIO signal %p IPC cmd %d trig %d", pmod, cmd,
-		       param ? param->pipeline_state.trigger_cmd : -EINVAL);
-
-		if (cmd == SOF_IPC4_GLB_SET_PIPELINE_STATE &&
-		    param->pipeline_state.trigger_cmd == COMP_TRIGGER_PREPARE) {
-			struct sof_audio_buffer *ab_snk = CONTAINER_OF(pmod->sinks[0],
-							struct sof_audio_buffer, _sink_api);
-			struct sof_audio_buffer *ab_src = CONTAINER_OF(pmod->sources[0],
-							struct sof_audio_buffer, _source_api);
-			tr_info(&dp_tr, "src %p %p %p", ab_src, ab_src->secondary_buffer_source,
-				ab_src->secondary_buffer_sink);
-			tr_info(&dp_tr, "snk %p %p %p", ab_snk, ab_snk->secondary_buffer_source,
-				ab_snk->secondary_buffer_sink);
-		}
-		ret = ipc_rtio_flatten(cmd, param, flat);
-		if (!ret) {
-			pdata->id = IPC_READ_SQE;
-			k_sem_give(&dp_rtio_ipc_sem);
-#ifdef USE_RTIO
-			rtio_iodev_sqe_ok(iodev_sqe, 0);
-#endif
-		}
-#ifdef USE_RTIO
+	ret = ipc_rtio_flatten(cmd, param, flat);
+	if (!ret) {
+		pdata->pend_ipc = 1;
+		k_sem_give(&dp_rtio_ipc_sem);
 	}
-#endif
 
 	k_spin_unlock(&rtio_lock, key);
 
 	k_thread_foreach_filter_by_cpu(2, dump_state, NULL);
-	if (
-#ifdef USE_RTIO
-		sqe && 
-#endif
-		!ret) {
-#if 0 // changing this to 0 makes the user-space DP thread wake up in line 621
-		dpriint(__LINE__);
-		k_msleep(5);
-		dpriint(__LINE__);
-#elif 1 // but actually this part is needed
+	if (!ret) {
 		k_sem_take(&dp_rtio_sync_sem, K_FOREVER);
 		ret = flat->ret;
-#endif
 	}
 
 	return ret;
 }
-
-static void producer_submit(struct rtio_iodev_sqe *iodev_sqe)
-{
-}
-
-/* An API and a .submit method are compulsory */
-const struct rtio_iodev_api producer_api = {.submit = producer_submit};
-
-/* As long as .data == NULL one RTIO IO-device should suffice for all DP tasks */
-RTIO_IODEV_DEFINE(producer_iodev, &producer_api, NULL);
-
-struct sof_user_data {
-	enum sof_dp_rtio_read_id id;
-};
-
-#ifdef USE_RTIO
-static struct rtio_sqe *zephyr_dp_rtio_handle(struct rtio_iodev_sqe *iodev_sqe,
-					      struct sof_user_data *udata, bool *new)
-{
-	struct rtio_sqe *sqe_handle = NULL;
-
-	rtio_sqe_prep_nop(&iodev_sqe->sqe, &producer_iodev, udata);
-
-	/* Copy sqe into the kernel mode and get a handle out */
-	int ret = rtio_sqe_copy_in_get_handles(/*&iodev_sqe->r*/&dp_consumer, &iodev_sqe->sqe,
-					       &sqe_handle, 1);
-
-	if (ret < 0)
-		tr_warn(&dp_tr, "DP RTIO: no SQE handle!");
-	else
-		*new = false;
-
-	return sqe_handle;
-}
-#endif
 
 #include <zephyr/internal/syscall_handler.h>
 /* Thread function called in component context, on target core */
@@ -651,10 +547,7 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 	struct task *task = p1;
 	struct task_dp_pdata *task_pdata = task->priv_data;
 	struct processing_module *pmod = task_pdata->mod;
-	bool ipc_new = true, audio_new = true, first = true;
-	//struct sof_user_data sof_rtio_ipc = {IPC_READ_SQE,};
-	//struct sof_user_data sof_rtio_audio = {AUDIO_READ_SQE,};
-	struct rtio_iodev_sqe mod_sqe[N_READ_SQE];
+	bool first = true;
 	//unsigned int lock_key;
 	enum task_state state;
 	bool task_stop;
@@ -664,30 +557,9 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 
 	tr_info(&dp_tr, "DP thread %p mod %p", k_current_get(), pmod);
 
-	for (unsigned int i = 0; i < N_READ_SQE; i++) {
-		mod_sqe[i].next = NULL;
-		mod_sqe[i].r = &dp_consumer;
-		mod_sqe[i].q.next = NULL;
-	}
-
 	do {
 		bool ready;
-#ifdef USE_RTIO
-		//k_spinlock_key_t key = k_spin_lock(&rtio_lock);
 
-		/* prepare and submit SQEs */
-		if (audio_new)
-			pmod->audio_sqe = zephyr_dp_rtio_handle(mod_sqe + AUDIO_READ_SQE,
-								&sof_rtio_audio, &audio_new);
-		if (ipc_new)
-			pmod->ipc_sqe = zephyr_dp_rtio_handle(mod_sqe + IPC_READ_SQE,
-							      &sof_rtio_ipc, &ipc_new);
-
-		//k_spin_unlock(&rtio_lock, key);
-//#elif defined(USE_RTIO)
-		/* Submit SQEs without waiting */
-		rtio_submit(&dp_consumer, 0);
-#endif
 		if (first) {
 			/*
 			 * The IPC RTIO completion function is waiting for SQEs to be submitted,
@@ -706,23 +578,17 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 		 */
 		//dpriint(__LINE__);
 		k_sem_take(&dp_rtio_ipc_sem, K_FOREVER);
-		//struct rtio_cqe *cqe = NULL/*rtio_cqe_consume_block(&dp_consumer)*/;
-		//dpriint(__LINE__);
-		//for (;;) k_yield(); // BUG hang here
-		//struct sof_user_data *completion = cqe->userdata;
-		//
-		//rtio_cqe_release(&dp_consumer, cqe);
-		//
-		//if (!completion) {
-		//	tr_warn(&dp_tr, "No RTIO completion");
-		//	continue;
-		//}
 
-		switch (task_pdata/*completion*/->id) {
-		case IPC_READ_SQE:
+		if ((unsigned)(task_pdata->pend_ipc + task_pdata->pend_proc - 1) > 1) {
+			tr_err(&dp_tr, "Invalid wake up %u:%u",
+			       task_pdata->pend_proc, task_pdata->pend_ipc);
+			continue;
+		}
+
+		if (task_pdata->pend_ipc) {
 			/* handle IPC */
+			task_pdata->pend_ipc = 0;
 			tr_dbg(&dp_tr, "got IPC RTIO for %p state %d", pmod, task->state);
-			ipc_new = true;
 			dpriint(__LINE__);
 			//for (;;) k_yield(); // BUG hang here
 			ipc_rtio_unflatten_run(pmod, (struct ipc4_flat *)ipc_buf);
@@ -731,10 +597,11 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 			//for (;;) k_yield(); // BUG hang here
 
 			//lock_key = scheduler_dp_lock();
-			break;
-		case AUDIO_READ_SQE:
+		}
+
+		if (task_pdata->pend_proc) {
 			/* handle audio */
-			audio_new = true;
+			task_pdata->pend_proc = 0;
 
 			ready = module_is_ready_to_process(pmod,
 							   pmod->sources, pmod->num_of_sources,
@@ -774,10 +641,6 @@ static void dp_thread_fn(void *p1, void *p2, void *p3)
 			} else {
 				task->state = SOF_TASK_STATE_QUEUED;
 			}
-			break;
-		default:
-			tr_err(&dp_tr, "Invalid RTIO completion %d", task_pdata/*completion*/->id);
-			continue;
 		}
 
 		/* if true exit the while loop, terminate the thread */
@@ -899,8 +762,6 @@ int scheduler_dp_task_init(struct task **task,
 
 	memset(task_memory, 0, sizeof(*task_memory));
 
-	task_memory->api = producer_api;
-	producer_iodev.api = &task_memory->api;
 	task_memory->drv = *mod->dev->drv;
 	task_memory->ops = *mod->dev->drv->adapter_ops;
 	task_memory->drv.adapter_ops = &task_memory->ops;
@@ -948,13 +809,9 @@ int scheduler_dp_task_init(struct task **task,
 					   /*K_INHERIT_PERMS | */K_USER, K_FOREVER);
 	tr_info(&dp_tr, "%d", __LINE__);
 
-	k_thread_access_grant(pdata->thread, &dp_rtio_sync_sem, &dp_rtio_ipc_sem, &producer_iodev);
+	k_thread_access_grant(pdata->thread, &dp_rtio_sync_sem, &dp_rtio_ipc_sem);
 	tr_info(&dp_tr, "thread access %p", pdata->thread);
 
-#ifdef USE_RTIO
-	rtio_access_grant(&dp_consumer, pdata->thread);
-	tr_info(&dp_tr, "thread %p ok rtio %p", pdata->thread, &dp_consumer);
-#endif
 	/* pin the thread to specific core */
 	ret = k_thread_cpu_pin(pdata->thread_id, core);
 	if (ret < 0) {
@@ -991,7 +848,7 @@ int scheduler_dp_task_init(struct task **task,
 	};
 
 	/* Create a memory domain, add the thread and its stack and heap to it */
-	ret = k_mem_domain_init(&pdata->mdom, SOF_DP_PART_TYPE_COUNT/* + 1*/, ppart);
+	ret = k_mem_domain_init(&dp_mdom, SOF_DP_PART_TYPE_COUNT, ppart);
 	if (ret < 0) {
 		tr_err(&dp_tr, "failed to init mem domain %d", ret);
 		goto e_thread;
@@ -1000,13 +857,13 @@ int scheduler_dp_task_init(struct task **task,
 	tr_info(&dp_tr, "heap %zu @ %#lx, cfg %p : %#x in domain", size, start,
 		mod->priv.cfg.init_data, MAILBOX_HOSTBOX_BASE);
 
-	ret = llext_manager_add_domain(mod->dev->ipc_config.id, &pdata->mdom);
+	ret = llext_manager_add_domain(mod->dev->ipc_config.id, &dp_mdom);
 	if (ret < 0) {
 		tr_err(&dp_tr, "failed to add LLEXT to domain %d", ret);
 		goto e_thread;
 	}
 
-	ret = k_mem_domain_add_thread(&pdata->mdom, pdata->thread_id);
+	ret = k_mem_domain_add_thread(&dp_mdom, pdata->thread_id);
 	if (ret < 0) {
 		tr_err(&dp_tr, "failed to add thread to domain %d", ret);
 		goto e_thread;
