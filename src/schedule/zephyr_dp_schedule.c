@@ -546,14 +546,11 @@ int scheduler_dp_task_init(struct task **task,
 			   uint32_t options)
 {
 	void __sparse_cache *p_stack = NULL;
-	struct sys_heap *const user_heap = mod->dev->drv->user_heap;
-
 	/* memory allocation helper structure */
 	struct {
 		struct task task;
 		struct task_dp_pdata pdata;
 	} *task_memory;
-
 	int ret;
 
 	/* must be called on the same core the task will be binded to */
@@ -566,8 +563,14 @@ int scheduler_dp_task_init(struct task **task,
 	 * As the structure contains zephyr kernel specific data, it must be located in
 	 * shared, non cached memory
 	 */
+#if CONFIG_SOF_ZEPHYR_USE_SHARED_HEAP
+	struct sys_heap *const user_heap = mod->dev->drv->user_heap;
+
 	task_memory = module_driver_heap_rzalloc(user_heap, SOF_MEM_FLAG_USER |
 						 SOF_MEM_FLAG_COHERENT, sizeof(*task_memory));
+#else
+	task_memory = mod_alloc_ext(mod, SOF_MEM_FLAG_COHERENT, sizeof(*task_memory), 0);
+#endif
 	if (!task_memory) {
 		tr_err(&dp_tr, "memory alloc failed");
 		return -ENOMEM;
@@ -634,7 +637,11 @@ err:
 	/* k_object_free looks for a pointer in the list, any invalid value can be passed */
 	k_object_free(task_memory->pdata.sem);
 	k_object_free(task_memory->pdata.thread);
+#if CONFIG_SOF_ZEPHYR_USE_SHARED_HEAP
 	module_driver_heap_free(user_heap, task_memory);
+#else
+	mod_free(mod, task_memory);
+#endif
 	return ret;
 }
 

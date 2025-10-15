@@ -50,7 +50,9 @@ static inline void comp_free(struct comp_dev *dev)
 	if ((dev->is_shared || dev->ipc_config.proc_domain == COMP_PROCESSING_DOMAIN_DP) &&
 	    dev->task) {
 		schedule_task_free(dev->task);
+#if CONFIG_SOF_ZEPHYR_USE_SHARED_HEAP
 		module_driver_heap_free(dev->drv->user_heap, dev->task);
+#endif
 		dev->task = NULL;
 	}
 
