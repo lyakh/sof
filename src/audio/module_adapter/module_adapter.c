@@ -106,13 +106,12 @@ static void module_adapter_mem_free(struct processing_module *mod)
 static struct processing_module *module_adapter_mem_alloc(const struct comp_driver *drv,
 							  const struct comp_ipc_config *config)
 {
+	const size_t heap_size = 8 * 1024;
 	uint8_t *mod_heap_mem;
 	struct k_heap *mod_heap;
 	int flags;
 
 	if (config->proc_domain == COMP_PROCESSING_DOMAIN_DP) {
-		const size_t heap_size = 8 * 1024;
-
 		/* Keep uncached to match the default SOF heap! */
 		mod_heap_mem = rballoc_align(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT,
 					     heap_size, PAGE_SZ);
@@ -143,6 +142,8 @@ static struct processing_module *module_adapter_mem_alloc(const struct comp_driv
 	memset(mod, 0, sizeof(*mod));
 	mod->priv.resources.heap = mod_heap;
 	mod->priv.resources.heap_mem = mod_heap_mem;
+	mod->priv.resources.heap_size = heap_size;
+	mod_resource_init(mod);
 
 	/*
 	 * comp_alloc() always allocated dev uncached. Would be difficult to optimize. Only

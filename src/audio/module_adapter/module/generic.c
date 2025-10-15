@@ -71,7 +71,7 @@ int module_load_config(struct comp_dev *dev, const void *cfg, size_t size)
 	return ret;
 }
 
-static void mod_resource_init(struct processing_module *mod)
+void mod_resource_init(struct processing_module *mod)
 {
 	struct module_resources *rsrc = &mod->priv.resources;
 
@@ -112,7 +112,6 @@ int module_init(struct processing_module *mod)
 		comp_err(dev, "comp is missing mandatory interfaces");
 		return -EIO;
 	}
-	mod_resource_init(mod);
 
 	/* Now we can proceed with module specific initialization */
 	ret = interface->init(mod);
