@@ -18,6 +18,7 @@
 #include <sof/audio/source_api.h>
 #include <sof/audio/audio_buffer.h>
 #include <sof/audio/pipeline.h>
+#include <sof/schedule/dp_schedule.h>
 #include <sof/schedule/ll_schedule_domain.h>
 #include <sof/common.h>
 #include <sof/platform.h>
@@ -106,6 +107,7 @@ static void module_adapter_mem_free(struct processing_module *mod)
 static struct processing_module *module_adapter_mem_alloc(const struct comp_driver *drv,
 							  const struct comp_ipc_config *config)
 {
+	struct dp_heap_user *mod_heap_user;
 	const size_t heap_size = 8 * 1024;
 	uint8_t *mod_heap_mem;
 	struct k_heap *mod_heap;
@@ -118,16 +120,19 @@ static struct processing_module *module_adapter_mem_alloc(const struct comp_driv
 		if (!mod_heap_mem)
 			return NULL;
 
-		const size_t heap_prefix_size = ALIGN_UP(sizeof(*mod_heap), 8);
+		const size_t heap_prefix_size = ALIGN_UP(sizeof(*mod_heap_user), 4);
 		void *mod_heap_buf = mod_heap_mem + heap_prefix_size;
 
-		mod_heap = (struct k_heap *)mod_heap_mem;
+		mod_heap_user = (struct dp_heap_user *)mod_heap_mem;
+		mod_heap_user->client_count = 1;
+		mod_heap = &mod_heap_user->heap;
 		k_heap_init(mod_heap, mod_heap_buf, heap_size - heap_prefix_size);
 
 		flags = SOF_MEM_FLAG_COHERENT;
 	} else {
 		mod_heap_mem = NULL;
 		mod_heap = NULL;
+		mod_heap_user = NULL;
 
 		flags = 0;
 	}
@@ -176,6 +181,7 @@ emod:
 static void module_adapter_mem_free(struct processing_module *mod)
 {
 	struct k_heap *mod_heap = mod->priv.resources.heap;
+	struct dp_heap_user *mod_heap_user = CONTAINER_OF(mod_heap, struct dp_heap_user, heap);
 	void *mem = mod->priv.resources.heap_mem;
 
 #if CONFIG_IPC_MAJOR_4
@@ -184,7 +190,8 @@ static void module_adapter_mem_free(struct processing_module *mod)
 #endif
 	sof_heap_free(mod_heap, mod->dev);
 	sof_heap_free(mod_heap, mod);
-	rfree(mem);
+	if (!mod_heap || !--mod_heap_user->client_count)
+		rfree(mem);
 }
 #endif
 

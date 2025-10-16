@@ -8,6 +8,7 @@
 #ifndef __SOF_SCHEDULE_DP_SCHEDULE_H__
 #define __SOF_SCHEDULE_DP_SCHEDULE_H__
 
+#include <rtos/kernel.h>
 #include <rtos/task.h>
 #include <sof/trace/trace.h>
 #include <user/trace.h>
@@ -15,6 +16,12 @@
 #include <ipc4/base_fw.h>
 
 struct processing_module;
+
+struct dp_heap_user {
+	struct k_heap heap;
+	unsigned int client_count;	/* devices and buffers */
+	// lock;			/* TODO: protect the counter */
+};
 
 /**
  *
