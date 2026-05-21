@@ -871,8 +871,10 @@ static inline void comp_init(const struct comp_driver *drv,
 	dev->state = COMP_STATE_INIT;
 	list_init(&dev->bsink_list);
 	list_init(&dev->bsource_list);
+#ifndef __ZEPHYR__
 	memcpy_s(&dev->tctx, sizeof(dev->tctx),
 		 trace_comp_drv_get_tr_ctx(dev->drv), sizeof(struct tr_ctx));
+#endif
 }
 
 /**
