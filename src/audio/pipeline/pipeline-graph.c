@@ -17,6 +17,7 @@
 #include <sof/lib/uuid.h>
 #include <sof/compiler_attributes.h>
 #include <sof/list.h>
+#include <sof/schedule/ll_schedule_domain.h>
 #include <rtos/spinlock.h>
 #include <rtos/string.h>
 #include <rtos/clk.h>
@@ -233,18 +234,18 @@ static void buffer_set_comp(struct comp_buffer *buffer, struct comp_dev *comp,
  * User-space LL: IPC-level zephyr_ll_lock_sched() provides mutual
  * exclusion with the LL thread. No per-pipeline lock needed.
  */
-#define PPL_LOCK_DECLARE
-#define PPL_LOCK() zephyr_ll_lock_sched(PLATFORM_PRIMARY_CORE_ID)
-#define PPL_UNLOCK() zephyr_ll_unlock_sched(PLATFORM_PRIMARY_CORE_ID)
+#define PPL_LOCK_DECLARE int _core = comp->ipc_config.core
+#define PPL_LOCK() zephyr_ll_lock_sched(_core)
+#define PPL_UNLOCK() zephyr_ll_unlock_sched(_core)
 #else
 /*
  * Kernel-space LL. When modifying pipeline connections, block IRQs
  * and prevent LL from running. No locking needed when iterating
  * the pipeline in the LL thread.
  */
-#define PPL_LOCK_DECLARE uint32_t flags
-#define PPL_LOCK() irq_local_disable(flags)
-#define PPL_UNLOCK()  irq_local_enable(flags)
+#define PPL_LOCK_DECLARE uint32_t _flags
+#define PPL_LOCK() irq_local_disable(_flags)
+#define PPL_UNLOCK()  irq_local_enable(_flags)
 #endif
 
 int pipeline_connect(struct comp_dev *comp, struct comp_buffer *buffer,
