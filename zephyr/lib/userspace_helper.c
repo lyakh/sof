@@ -72,7 +72,6 @@ void module_driver_heap_remove(struct k_heap *mod_drv_heap)
 struct k_heap *sys_user_heap_init(size_t heap_size)
 {
 	const size_t prefix = ALIGN_UP(sizeof(struct k_heap), 4);
-	const size_t total = prefix + heap_size;
 
 	/*
 	 * Allocate a single page-aligned buffer for both the k_heap
@@ -82,7 +81,7 @@ struct k_heap *sys_user_heap_init(size_t heap_size)
 	 * k_heap struct, making it accessible from userspace syscall
 	 * verification wrappers such as z_vrfy_mod_free().
 	 */
-	void *mem = rballoc_align(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT, total,
+	void *mem = rballoc_align(SOF_MEM_FLAG_USER | SOF_MEM_FLAG_COHERENT, heap_size,
 				  CONFIG_MM_DRV_PAGE_SIZE);
 	if (!mem)
 		return NULL;
@@ -90,14 +89,10 @@ struct k_heap *sys_user_heap_init(size_t heap_size)
 	struct k_heap *mod_drv_heap = (struct k_heap *)mem;
 	void *heap_buf = (uint8_t *)mem + prefix;
 
-	k_heap_init(mod_drv_heap, heap_buf, heap_size);
+	k_heap_init(mod_drv_heap, heap_buf, heap_size - prefix);
 
-	/* init_mem / init_bytes track the full allocation so that
-	 * partition setup and sys_user_heap_remove()
-	 * cover and free the entire region including the k_heap struct.
-	 */
-	mod_drv_heap->heap.init_mem = mem;
-	mod_drv_heap->heap.init_bytes = total;
+	mod_drv_heap->heap.init_mem = heap_buf;
+	mod_drv_heap->heap.init_bytes = heap_size - prefix;
 
 	return mod_drv_heap;
 }
