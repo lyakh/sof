@@ -606,6 +606,7 @@ zephyr_library_sources(syscall/alloc.c)
 zephyr_syscall_header(${SOF_SRC_PATH}/include/sof/lib/vregion.h)
 zephyr_library_sources(syscall/vregion.c)
 zephyr_syscall_header(${SOF_SRC_PATH}/include/sof/lib/dai-zephyr.h)
+zephyr_syscall_header(${SOF_SRC_PATH}/include/sof/lib_manager.h)
 zephyr_library_sources(syscall/dai.c)
 
 zephyr_syscall_header(${SOF_SRC_PATH}/include/ipc4/notification.h)
