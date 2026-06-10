@@ -443,7 +443,7 @@ __cold static int ipc4_create_pipeline(struct ipc4_pipeline_create *pipe_desc,
 
 	assert_can_be_cold();
 
-	LOG_INF("pipe_desc %x, instance %u", pipe_desc, pipe_desc->primary.r.instance_id);
+	LOG_INF("pipe_desc %p, instance %u", pipe_desc, pipe_desc->primary.r.instance_id);
 
 	/* check whether pipeline id is already taken or in use */
 	ipc_pipe = ipc_get_pipeline_by_id(ipc, pipe_desc->primary.r.instance_id);
@@ -771,7 +771,9 @@ __cold int ipc_comp_connect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	struct comp_dev *sink;
 	struct ipc4_base_module_cfg source_src_cfg;
 	struct ipc4_base_module_cfg sink_src_cfg;
+#if !CONFIG_SOF_USERSPACE_LL
 	uint32_t flags = 0;
+#endif
 	uint32_t ibs = 0;
 	uint32_t obs = 0;
 	uint32_t buf_size;
@@ -1044,7 +1046,9 @@ __cold int ipc_comp_disconnect(struct ipc *ipc, ipc_pipe_comp_connect *_connect)
 	struct comp_buffer *buf;
 	struct comp_dev *src, *sink;
 	uint32_t src_id, sink_id, buffer_id;
+#if !CONFIG_SOF_USERSPACE_LL
 	uint32_t flags = 0;
+#endif
 	int ret, ret1;
 	bool cross_core_unbind;
 	struct bind_info unbind_data;
