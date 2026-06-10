@@ -529,11 +529,6 @@ struct k_thread *zephyr_ll_init_context(void *data, struct task *task)
 		return NULL;
 	}
 
-	if (!k_is_user_context()) {
-		tr_dbg(&ll_tr, "granting access to domain lock %p for thread %p", &sch->ll_domain->lock,
-			zephyr_domain_thread_tid(sch->ll_domain, task->core));
-	}
-
 	return zephyr_domain_thread_tid(sch->ll_domain, task->core);
 }
 
@@ -569,11 +564,6 @@ struct task *zephyr_ll_task_alloc(void)
 void zephyr_ll_task_free(struct task *task)
 {
 	sof_heap_free(zephyr_ll_user_heap(), task);
-}
-
-void zephyr_ll_grant_access(struct k_thread *thread)
-{
-	/* sof_umutex does not require access grants */
 }
 
 /**

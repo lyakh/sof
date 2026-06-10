@@ -116,7 +116,6 @@ struct task *zephyr_ll_task_alloc(void);
 void zephyr_ll_task_free(struct task *task);
 struct k_heap *zephyr_ll_user_heap(void);
 void zephyr_ll_user_resources_init(void);
-void zephyr_ll_grant_access(struct k_thread *thread);
 void zephyr_ll_lock_sched(int core);
 void zephyr_ll_unlock_sched(int core);
 #endif /* CONFIG_SOF_USERSPACE_LL */

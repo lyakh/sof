@@ -461,7 +461,6 @@ static void pipeline_two_components(void)
 	user_grant_dai_access_all(&ppl_user_thread);
 	user_grant_dma_access_all(&ppl_user_thread);
 	user_access_to_mailbox(zephyr_ll_mem_domain(), &ppl_user_thread);
-	zephyr_ll_grant_access(&ppl_user_thread);
 
 	task_thread = scheduler_init_context(task);
 	zassert_not_null(task_thread);
