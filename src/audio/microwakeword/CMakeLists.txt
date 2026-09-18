@@ -14,6 +14,48 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
   endif()
 endif()
 
+# SOF's default CONFIG_MINIMAL_LIBC is missing abs()/libm symbols TFLM needs
+# (e.g. floor()/frexp()/roundf(), pulled in via quantization_util.cc); extract
+# just those archive members from the toolchain's libc.a into a small private
+# archive. Both the static build (below) and the LLEXT/modular build
+# (llext/CMakeLists.txt) need it, so it is generated unconditionally, before
+# the modular early-return.
+set(MWW_TOOLCHAIN_LIBC_ARCHIVE
+  ${ZEPHYR_SDK_INSTALL_DIR}/gnu/xtensa-${SOC_TOOLCHAIN_NAME}_zephyr-elf/xtensa-${SOC_TOOLCHAIN_NAME}_zephyr-elf/lib/libc.a)
+set(MWW_LIBC_SHIM_MEMBERS
+  libc_stdlib_abs.c.o
+  libm_math_s_floor.c.o
+  libm_math_sf_exp.c.o
+  libm_math_sf_log.c.o
+  libm_math_sf_ceil.c.o
+  libm_math_s_frexp.c.o
+  libm_common_s_round.c.o
+  libm_common_sf_fmax.c.o
+  libm_common_sf_fmin.c.o
+  libm_common_sf_round.c.o
+  libm_common_sf_isnan.c.o
+  libm_common_sf_issignaling.c.o
+  libm_common_math_errf_uflowf.c.o
+  libm_common_math_errf_oflowf.c.o
+  libm_common_math_errf_divzerof.c.o
+  libm_common_math_errf_invalidf.c.o
+)
+set(MWW_LIBC_SHIM_DIR ${CMAKE_CURRENT_BINARY_DIR}/mww_libc_shim)
+set(MWW_LIBC_SHIM_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/libmww_libc_shim.a)
+file(MAKE_DIRECTORY ${MWW_LIBC_SHIM_DIR})
+add_custom_command(
+  OUTPUT ${MWW_LIBC_SHIM_ARCHIVE}
+  COMMAND ${CMAKE_AR} x ${MWW_TOOLCHAIN_LIBC_ARCHIVE} ${MWW_LIBC_SHIM_MEMBERS}
+  COMMAND ${CMAKE_AR} rcs ${MWW_LIBC_SHIM_ARCHIVE} ${MWW_LIBC_SHIM_MEMBERS}
+  WORKING_DIRECTORY ${MWW_LIBC_SHIM_DIR}
+  DEPENDS ${MWW_TOOLCHAIN_LIBC_ARCHIVE}
+  COMMENT "Extracting abs()/libm members TFLM needs from the toolchain libc.a"
+)
+add_custom_target(mww_libc_shim_gen DEPENDS ${MWW_LIBC_SHIM_ARCHIVE})
+add_library(mww_libc_shim STATIC IMPORTED GLOBAL)
+set_target_properties(mww_libc_shim PROPERTIES IMPORTED_LOCATION ${MWW_LIBC_SHIM_ARCHIVE})
+add_dependencies(mww_libc_shim mww_libc_shim_gen)
+
 # are we building the llext module ?
 if(CONFIG_COMP_MWW STREQUAL "m" AND DEFINED CONFIG_LLEXT)
   add_subdirectory(llext ${PROJECT_BINARY_DIR}/mww_llext)
@@ -216,6 +258,7 @@ target_include_directories(mww_tflm_lib PRIVATE
 	${sof_top_dir}/../modules/hal/xtensa/include
 	${MWW_HAL_SOC_PATH}
 )
+
 if(MWW_HAVE_NNLIB_HIFI4)
 target_include_directories(mww_tflm_lib PRIVATE
 	${NN_HIFI_PATH}
@@ -316,46 +359,9 @@ else()
   zephyr_link_libraries(mww_tflm_lib)
 endif()
 
-# Same libc-shim rationale as src/audio/tensorflow/CMakeLists.txt: SOF's
-# default CONFIG_MINIMAL_LIBC is missing abs()/libm symbols TFLM needs in a
-# statically-linked (non-LLEXT) image; extract just those archive members
-# from the toolchain's libc.a into a small private archive.
+# mww_libc_shim itself is generated unconditionally above (needed by the
+# LLEXT build too); just link it in here for the static build.
 if(NOT CONFIG_COMP_MWW STREQUAL "m")
-  set(MWW_TOOLCHAIN_LIBC_ARCHIVE
-    ${ZEPHYR_SDK_INSTALL_DIR}/gnu/xtensa-${SOC_TOOLCHAIN_NAME}_zephyr-elf/xtensa-${SOC_TOOLCHAIN_NAME}_zephyr-elf/lib/libc.a)
-  set(MWW_LIBC_SHIM_MEMBERS
-    libc_stdlib_abs.c.o
-    libm_math_s_floor.c.o
-    libm_math_sf_exp.c.o
-    libm_math_sf_log.c.o
-    libm_math_sf_ceil.c.o
-    libm_math_s_frexp.c.o
-    libm_common_s_round.c.o
-    libm_common_sf_fmax.c.o
-    libm_common_sf_fmin.c.o
-    libm_common_sf_round.c.o
-    libm_common_sf_isnan.c.o
-    libm_common_sf_issignaling.c.o
-    libm_common_math_errf_uflowf.c.o
-    libm_common_math_errf_oflowf.c.o
-    libm_common_math_errf_divzerof.c.o
-    libm_common_math_errf_invalidf.c.o
-  )
-  set(MWW_LIBC_SHIM_DIR ${CMAKE_CURRENT_BINARY_DIR}/mww_libc_shim)
-  set(MWW_LIBC_SHIM_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/libmww_libc_shim.a)
-  file(MAKE_DIRECTORY ${MWW_LIBC_SHIM_DIR})
-  add_custom_command(
-    OUTPUT ${MWW_LIBC_SHIM_ARCHIVE}
-    COMMAND ${CMAKE_AR} x ${MWW_TOOLCHAIN_LIBC_ARCHIVE} ${MWW_LIBC_SHIM_MEMBERS}
-    COMMAND ${CMAKE_AR} rcs ${MWW_LIBC_SHIM_ARCHIVE} ${MWW_LIBC_SHIM_MEMBERS}
-    WORKING_DIRECTORY ${MWW_LIBC_SHIM_DIR}
-    DEPENDS ${MWW_TOOLCHAIN_LIBC_ARCHIVE}
-    COMMENT "Extracting abs()/libm members TFLM needs from the toolchain libc.a"
-  )
-  add_custom_target(mww_libc_shim_gen DEPENDS ${MWW_LIBC_SHIM_ARCHIVE})
-  add_library(mww_libc_shim STATIC IMPORTED GLOBAL)
-  set_target_properties(mww_libc_shim PROPERTIES IMPORTED_LOCATION ${MWW_LIBC_SHIM_ARCHIVE})
-  add_dependencies(mww_libc_shim mww_libc_shim_gen)
   zephyr_link_libraries(mww_libc_shim)
 
   target_compile_definitions(mww_tflm_lib PRIVATE NDEBUG)

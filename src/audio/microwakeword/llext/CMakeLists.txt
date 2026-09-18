@@ -126,6 +126,13 @@ target_compile_options(mww_tflm_lib PRIVATE
 	-DTF_LITE_MCU_DEBUG_LOG
 	-DTF_LITE_USE_CTIME
 	-mlongcalls
+	# Without this, each function (incl. the many libstdc++/TFLM template
+	# instantiations pulled in here) gets its own .literal.<mangled-name>
+	# section, separate from .text. sof_llext_build() applies this same
+	# flag to plain-C llext libs (see zephyr/CMakeLists.txt) to keep L32R
+	# literal loads in range and give the module the same single
+	# .text/.rodata/.data/.bss layout as a "classic C" LLEXT like drc.llext.
+	-mtext-section-literals
 	-fPIC
 	# TF_LITE_STRIP_ERROR_STRINGS drops DebugLog()/DebugVsnprintf()'s calls
 	# into vprintf/vsnprintf; NDEBUG drops libc assert(). Both chains pull
@@ -161,6 +168,13 @@ if(NOT "${MWW_TOOLCHAIN_ROOT}" STREQUAL "")
 	list(APPEND MWW_LIBS_PATHS ${MWW_TOOLCHAIN_ROOT}/lib)
 endif()
 
+# mww_libc_shim (abs()/floor()/frexp()/roundf() etc., see the parent
+# CMakeLists.txt) is needed here too: TFLM's quantization_util.cc pulls in
+# those libm symbols regardless of whether mww is built statically or as
+# an LLEXT module.
+get_filename_component(MWW_LIBC_SHIM_DIR_LLEXT ${MWW_LIBC_SHIM_ARCHIVE} DIRECTORY)
+list(APPEND MWW_LIBS_PATHS ${MWW_LIBC_SHIM_DIR_LLEXT})
+
 sof_llext_build("mww"
 	SOURCES
 		../mww.c
@@ -173,9 +187,14 @@ sof_llext_build("mww"
 		${sof_top_dir}/posix/include
 	LIBS
 		mww_tflm_lib
+		mww_libc_shim
 	LIBS_PATH
 		${MWW_LIBS_PATHS}
 )
+
+# Ensure the shim archive is extracted before the LLEXT image is linked;
+# it is not otherwise a build-order dependency of the raw link command.
+add_dependencies(mww_llext_lib mww_libc_shim_gen)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT CMAKE_C_COMPILER MATCHES "xt-clang" AND NOT "${MWW_TOOLCHAIN_ROOT}" STREQUAL "")
 	llext_link_options(mww
