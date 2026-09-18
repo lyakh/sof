@@ -77,6 +77,17 @@ def main():
 
 	command = [args.command]
 
+	# C++ COMDAT sections (e.g. .text._Z... from template/inline functions)
+	# are members of an ELF section group (SHF_GROUP). A relocatable (-r)
+	# link normally leaves such group members untouched at their original
+	# (often zero) address instead of merging/positioning them, since group
+	# resolution is deferred to a later, non-relocatable link that never
+	# happens in this build. --force-group-allocation makes the linker drop
+	# each section out of its group and place it as an ordinary section, so
+	# our --section-start addresses below actually take effect.
+	command.append('-Wl,--force-group-allocation')
+
+	executable_dram = []
 	executable = []
 	writable = []
 	readonly = []
@@ -112,7 +123,13 @@ def main():
 				text_addr = max_alignment(text_addr, 0x1000, s_alignment)
 				text_size = s_size
 				command.append(f'-Wl,-Ttext=0x{text_addr:x}')
+			elif s_name == '.cold' or s_name.startswith('.cold.'):
+				# Deliberately DRAM-offloaded code, see below.
+				executable_dram.append(section)
 			else:
+				# Not .text and not .cold: e.g. a C++ COMDAT section
+				# (.text._Z...) that a partial (-r) link couldn't merge
+				# into .text. Still hot code, place it in SRAM with .text.
 				executable.append(section)
 
 			continue
@@ -145,16 +162,21 @@ def main():
 	# .coldrodata ELF section, etc. When compiling and linking such
 	# functions, an additional .cold.literal section is automatically
 	# created.
-	# This script links those sections at address 0. We could hard-code
-	# section names, but so far we choose to only link .text the "original"
-	# way and all other executable sections we link at 0. For data sections
-	# we accept only the .coldrodata name for now.
+	# This script links those sections at address 0. For data sections we
+	# accept only the .coldrodata name for now. Any other executable
+	# section that isn't named .text or .cold(.*) is still hot code (most
+	# commonly leftover C++ COMDAT sections a partial link couldn't fold
+	# into .text) and must NOT be placed at address 0: below
+	# SOF_MODULE_DRAM_LINK_END that would make llext_manager.c's
+	# llext_manager_section_detached() wrongly treat it as already-placed
+	# DRAM-offloaded code and skip copying it into SRAM. Place it in SRAM
+	# right after .text instead.
 
 	dram_addr = 0
 	first_dram_text = None
 	first_dram_rodata = None
 
-	for section in executable:
+	for section in executable_dram:
 		s_alignment = section.header['sh_addralign']
 		s_name = section.name
 
@@ -183,6 +205,18 @@ def main():
 		dram_addr += section.header['sh_size']
 
 	start_addr = align_up(text_addr + text_size, 0x1000)
+
+	for section in executable:
+		s_alignment = section.header['sh_addralign']
+		s_name = section.name
+
+		start_addr = align_up(start_addr, s_alignment)
+
+		command.append(f'-Wl,--section-start={s_name}=0x{start_addr:x}')
+
+		start_addr += section.header['sh_size']
+
+	start_addr = align_up(start_addr, 0x1000)
 
 	for section in readonly:
 		s_alignment = section.header['sh_addralign']
