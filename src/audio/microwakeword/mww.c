@@ -113,7 +113,7 @@ EXPORT_SYMBOL(mww_uuid);
 EXPORT_SYMBOL(log_const_mww);
 #endif
 
-#if CONFIG_AMS
+#if CONFIG_AMS && !CONFIG_KPB_CLI_Q
 /* Key-phrase detected message, shared with src/samples/audio/detect_test.c
  * and consumed by kpb.c's AMS-consumer branch -- no kpb.c changes needed.
  */
@@ -161,7 +161,21 @@ struct mww_comp_data {
 	uint32_t kpb_trigger_events;
 } __attribute__((aligned(8)));
 
-#if CONFIG_AMS
+#if CONFIG_KPB_CLI_Q
+static int mww_notify_kpb(struct processing_module *mod)
+{
+	struct mww_comp_data *cd = module_get_private_data(mod);
+
+	cd->client_data.r_ptr = NULL;
+	cd->client_data.sink = NULL;
+	cd->client_data.id = 0; /**< TODO: acquire proper id from kpb */
+	cd->client_data.drain_req = cd->drain_req_ms;
+
+	kpb_notifier_schedule(&cd->client_data);
+
+	return 0;
+}
+#elif CONFIG_AMS
 static int mww_notify_kpb(struct processing_module *mod)
 {
 	struct mww_comp_data *cd = module_get_private_data(mod);
@@ -301,7 +315,9 @@ static int mww_prepare(struct processing_module *mod,
 		return ret;
 	}
 
-#if CONFIG_AMS
+#if CONFIG_KPB_CLI_Q
+	kpb_notifier_init(dev, &cd->client_data);
+#elif CONFIG_AMS
 	/* Register KD as AMS producer */
 	ret = ams_helper_register_producer(dev, &cd->kpd_uuid_id, ams_kpd_msg_uuid);
 	if (ret)
