@@ -52,15 +52,13 @@ int notifier_register(void *receiver, void *caller, enum notify_id type,
 	/* Find already registered event of this type */
 	if (flags & NOTIFIER_FLAG_AGGREGATE &&
 	    !list_is_empty(&notify->list[type])) {
-		handle = container_of((&notify->list[type])->next,
-				      struct callback_handle, list);
+		handle = container_of(&notify->list[type], struct callback_handle, list);
 		handle->num_registrations++;
 
 		goto out;
 	}
 
-	handle = rzalloc(SOF_MEM_FLAG_USER,
-			 sizeof(*handle));
+	handle = rzalloc(SOF_MEM_FLAG_USER, sizeof(*handle));
 
 	if (!handle) {
 		tr_err(&nt_tr, "callback handle allocation failed.");
