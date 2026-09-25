@@ -113,6 +113,7 @@ target_include_directories(mww_tflm_lib PRIVATE
 )
 
 target_compile_options(mww_tflm_lib PRIVATE
+	-O2
 	-std=c++17
 	-fno-rtti
 	-fno-exceptions
@@ -133,7 +134,6 @@ target_compile_options(mww_tflm_lib PRIVATE
 	# literal loads in range and give the module the same single
 	# .text/.rodata/.data/.bss layout as a "classic C" LLEXT like drc.llext.
 	-mtext-section-literals
-	-fPIC
 	# TF_LITE_STRIP_ERROR_STRINGS drops DebugLog()/DebugVsnprintf()'s calls
 	# into vprintf/vsnprintf; NDEBUG drops libc assert(). Both chains pull
 	# in libc.a objects (vfprintf/fwrite/abort) that are not built PIC-safe,
