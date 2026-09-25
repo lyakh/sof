@@ -6,6 +6,7 @@
  */
 
 #include <zephyr/init.h>
+#include <zephyr/logging/log.h>
 
 #if defined(CONFIG_MM_DRV)
 #include <sof/lib/regions_mm.h>

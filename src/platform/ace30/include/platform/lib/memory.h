@@ -15,7 +15,6 @@
 
 #include <ace/lib/memory.h>
 #include <mem_window.h>
-#include <sof/lib/cpu.h>
 
 /* HP SRAM windows */
 #define WIN_BASE(n)			DT_REG_ADDR(DT_PHANDLE(MEM_WINDOW_NODE(n), memory))

@@ -9,8 +9,6 @@
 #include <rtos/bit.h>
 #include <rtos/string.h>
 #include <sof/lib/memory.h> /* PLATFORM_DCACHE_ALIGN */
-#include <sof/trace/trace.h>
-#include <user/trace.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -109,9 +107,15 @@ __syscall void *sof_heap_alloc(struct k_heap *heap, uint32_t flags, size_t bytes
 __syscall void sof_heap_free(struct k_heap *heap, void *addr);
 #include <zephyr/syscalls/alloc.h>
 #else
+#ifdef __cplusplus
+extern "C" {
+#endif
 void *sof_heap_alloc(struct k_heap *heap, uint32_t flags, size_t bytes,
 		     size_t alignment);
 void sof_heap_free(struct k_heap *heap, void *addr);
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 #if CONFIG_SOF_FULL_ZEPHYR_APPLICATION

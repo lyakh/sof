@@ -314,7 +314,7 @@ void dma_sg_free(struct k_heap *heap, struct dma_sg_elem_array *ea);
  */
 static inline uint32_t dma_sg_get_size(struct dma_sg_elem_array *ea)
 {
-	int i;
+	unsigned int i;
 	uint32_t size = 0;
 
 	for (i = 0 ; i < ea->count; i++)

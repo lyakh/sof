@@ -13,6 +13,8 @@
 #ifndef __SOF_AUDIO_MODULE_GENERIC__
 #define __SOF_AUDIO_MODULE_GENERIC__
 
+#include <rtos/alloc.h>
+#ifndef __cplusplus
 #include <rtos/mutex.h>
 #include <sof/objpool.h>
 #include <sof/ut.h>
@@ -179,6 +181,11 @@ struct module_processing_data {
 #define SOF_MODULE_API_PRIVATE
 
 #include <module/module/base.h>
+#else /* __cplusplus */
+struct comp_dev;
+struct processing_module;
+extern "C" {
+#endif /* __cplusplus */
 
 /*****************************************************************************/
 /* Module generic interfaces						     */
@@ -242,6 +249,7 @@ static inline void *mod_zalloc(struct processing_module *mod, size_t size)
 	return ret;
 }
 
+#ifndef __cplusplus
 /**
  * \brief Initialize a new IPC message using the module allocator.
  * @param mod Module to allocate from
@@ -545,6 +553,9 @@ static inline uint32_t module_get_lpt(struct processing_module *mod)
 	/* return worst case of LPT - a module period. See zephyr_dp_schedule.c for description */
 	return mod->dev->period;
 }
+#else
+}
+#endif /* __cplusplus */
 
 #if defined(__ZEPHYR__) && defined(CONFIG_SOF_FULL_ZEPHYR_APPLICATION)
 #include <zephyr/syscalls/generic.h>

@@ -835,7 +835,7 @@ static inline uint32_t
 *audio_stream_rewind_wptr_by_bytes(const struct audio_stream *source, const uint32_t bytes)
 {
 	void *wptr = audio_stream_get_wptr(source);
-	int to_begin = audio_stream_rewind_bytes_without_wrap(source, wptr);
+	unsigned int to_begin = audio_stream_rewind_bytes_without_wrap(source, wptr);
 
 	assert((intptr_t)wptr >= (intptr_t)source->addr);
 	assert((intptr_t)source->end_addr > (intptr_t)wptr);

@@ -13,7 +13,6 @@
 #include <sof/common.h>
 #include <rtos/cache.h>
 #if !defined(__ASSEMBLER__) && !defined(LINKER)
-#include <sof/lib/cpu.h>
 #endif
 
 /* data cache line alignment */
