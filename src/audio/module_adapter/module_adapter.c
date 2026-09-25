@@ -66,7 +66,7 @@ static struct vregion *module_adapter_dp_heap_new(const struct comp_ipc_config *
 			return NULL;
 		}
 
-		buf_size = ext_init->dp_data->heap_bytes;
+		buf_size = ext_init->dp_data->heap_bytes + 4096;
 
 		LOG_INF("%zu byte heap size requested in IPC for %#x", buf_size, config->id);
 	}
