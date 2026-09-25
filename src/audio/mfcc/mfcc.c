@@ -216,7 +216,6 @@ static int mfcc_prepare(struct processing_module *mod,
 	struct comp_buffer *sinkb;
 	struct comp_dev *dev = mod->dev;
 	enum sof_ipc_frame source_format;
-	enum sof_ipc_frame sink_format;
 	size_t data_size;
 	int ret;
 
@@ -234,8 +233,7 @@ static int mfcc_prepare(struct processing_module *mod,
 	source_format = audio_stream_get_frm_fmt(&sourceb->stream);
 
 	/* get sink data format and period bytes */
-	sink_format = audio_stream_get_frm_fmt(&sinkb->stream);
-	comp_info(dev, "source_format = %d, sink_format = %d", source_format, sink_format);
+	comp_info(dev, "source_format = %d", source_format);
 
 	cd->config = comp_get_data_blob(cd->model_handler, &data_size, NULL);
 
