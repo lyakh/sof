@@ -4,7 +4,10 @@
 
 #include <cstddef>
 #include <stdlib.h>
+#include <rtos/alloc.h>
+#include <rtos/kernel.h>
 #include <rtos/symbol.h>
+#include <sof/audio/module_adapter/module/generic.h>
 
 /*
  * LLEXT modules linking C++ code (e.g. TFLite Micro) can end up with
@@ -21,13 +24,25 @@ namespace {
 
 [[maybe_unused]] void *sof_operator_new(size_t size)
 {
+	struct processing_module *mod = (struct processing_module *)k_thread_custom_data_get();
+
+	printk("new mod %p thread %p\n", mod, k_current_get());
+	if (mod)
+		return mod_alloc(mod, size);
+
 	return malloc(size);
 }
 
 [[maybe_unused]] void sof_operator_delete(void *ptr, size_t size)
 {
 	(void)size;
-	free(ptr);
+
+	struct processing_module *mod = (struct processing_module *)k_thread_custom_data_get();
+
+	if (mod)
+		mod_free(mod, ptr);
+	else
+		free(ptr);
 }
 
 /*

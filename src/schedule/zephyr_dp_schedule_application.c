@@ -355,6 +355,7 @@ void dp_thread_fn(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p3);
 
 	/* The IPC thread is waiting for the thread to be started, it can proceed now. */
+	k_thread_custom_data_set(pmod);
 	k_sem_give(&dp_sync[task->core]);
 	comp_info(pmod->dev, "userspace thread started");
 
