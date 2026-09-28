@@ -586,7 +586,6 @@ __cold static int mww_set_config(struct processing_module *mod, uint32_t param_i
 	const uint8_t *fragment, size_t fragment_size, uint8_t *response,
 	size_t response_size)
 {
-	struct mww_comp_data *cd = module_get_private_data(mod);
 	int ret;
 
 	if (mod->dev->state != COMP_STATE_INIT && mod->dev->state != COMP_STATE_READY) {
@@ -595,12 +594,13 @@ __cold static int mww_set_config(struct processing_module *mod, uint32_t param_i
 		return 0;
 	}
 
-	ret = comp_data_blob_set(cd->model_handler, pos, data_offset_size,
-				 fragment, fragment_size);
+	ret = mod_data_blob_set(mod, pos, data_offset_size, fragment, fragment_size);
 	if (ret < 0)
 		return ret;
 
 #if CONFIG_COMP_MWW_MODEL_FROM_CONTROL
+	struct mww_comp_data *cd = module_get_private_data(mod);
+
 	/* When the blob is fully received, cache a copy in the module's own
 	 * vregion so mww_prepare() can access it from the DP user thread.
 	 * This function runs in the IPC (kernel) context, so it is safe to

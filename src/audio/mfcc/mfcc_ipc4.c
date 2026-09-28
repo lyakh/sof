@@ -125,8 +125,6 @@ int mfcc_set_config(struct processing_module *mod, uint32_t config_id,
 		    const uint8_t *fragment, size_t fragment_size, uint8_t *response,
 		    size_t response_size)
 {
-	struct mfcc_comp_data *cd = module_get_private_data(mod);
-
 	comp_info(mod->dev, "entry");
 
 	switch (config_id) {
@@ -134,7 +132,6 @@ int mfcc_set_config(struct processing_module *mod, uint32_t config_id,
 		/* VAD switch is read-only, ignore set requests */
 		return 0;
 	default:
-		return comp_data_blob_set(cd->model_handler, pos, data_offset_size,
-					  fragment, fragment_size);
+		return mod_data_blob_set(mod, pos, data_offset_size, fragment, fragment_size);
 	}
 }
